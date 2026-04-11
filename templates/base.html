@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Inventory Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100">
+
+<div class="flex h-screen">
+
+    <!-- SIDEBAR -->
+    <div class="w-64 bg-gray-900 text-white p-4 space-y-4">
+
+        <h2 class="text-xl font-bold">IMS Dashboard</h2>
+
+        <!-- Always visible -->
+        <a href="/" class="block py-2">Dashboard</a>
+
+        <!-- PRODUCT MODULE -->
+        {% if perms.inventory.view_product %}
+        <div>
+            <p class="text-gray-400 text-sm mt-4">PRODUCT</p>
+
+            {% if perms.inventory.add_product %}
+            <a href="/products/create/" class="block py-1">Add Product</a>
+            {% endif %}
+
+            <a href="/products/" class="block py-1">View Products</a>
+        </div>
+        {% endif %}
+
+        <!-- INVENTORY REQUEST -->
+        {% if perms.inventory.view_inventoryrequest %}
+        <div>
+            <p class="text-gray-400 text-sm mt-4">REQUESTS</p>
+
+            {% if perms.inventory.add_inventoryrequest %}
+            <a href="/requests/create/" class="block py-1">New Request</a>
+            {% endif %}
+
+            {% if perms.inventory.approve_inventoryrequest %}
+            <a href="/requests/approval/" class="block py-1">Pending Requests</a>
+            {% endif %}
+
+            <a href="/requests/" class="block py-1">My Requests</a>
+        </div>
+        {% endif %}
+
+        <!-- PROCUREMENT (Manager only) -->
+        {% if perms.inventory.view_procurementrequest %}
+        <div>
+            <p class="text-gray-400 text-sm mt-4">PROCUREMENT</p>
+
+            {% if perms.inventory.add_procurementrequest %}
+            <a href="/requests/create/" class="block py-1">New Request</a>
+            {% endif %}
+
+            {% if perms.inventory.approve_procurementrequest %}
+            <a href="/requests/approval/" class="block py-1">Pending Requests</a>
+            {% endif %}
+
+            <a href="/procurement/" class="block py-1">Procurement Requests</a>
+        </div>
+        {% endif %}
+
+        <!-- LOGOUT -->
+        <form method="post" action="{% url 'logout' %}" class="mt-6">
+            {% csrf_token %}
+            <button class="bg-red-500 px-3 py-1 rounded">
+                Logout
+            </button>
+        </form>
+
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="flex-1 p-6">
+
+        {% block content %}
+        {% endblock %}
+
+    </div>
+
+</div>
+
+</body>
+</html>
