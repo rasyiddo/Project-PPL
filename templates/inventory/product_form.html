@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1 class="text-2xl font-bold mb-4">Product Form</h1>
+
+<form method="post" class="bg-white p-4 rounded shadow space-y-4">
+    {% csrf_token %}
+
+    {% load widget_tweaks %}
+
+    {% if form.non_field_errors %}
+    <span class="text-red-500"> {{ form.non_field_errors  }}</span>
+    {% endif %}
+
+    <div>
+        {{ form.name.label_tag }}
+        {{ form.name }}
+        {% if form.name.errors %}
+        <span class="text-red-500"> {{ form.name.errors  }}</span>
+        {% endif %}
+    </div>
+
+    <div>
+        {{ form.stock.label_tag }}
+        {{ form.stock }}
+        {% if form.stock.errors %}
+        <span class="text-red-500"> {{ form.stock.errors  }}</span>
+        {% endif %}
+    </div>
+
+    <button class="bg-green-600 text-white px-4 py-2 rounded">
+        Save
+    </button>
+</form>
+
+{% endblock %}
