@@ -135,4 +135,3 @@ Make sure to:
 * Set environment variables
 * Configure PostgreSQL database
 * Collect static files
-
