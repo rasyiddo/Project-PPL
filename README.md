@@ -1,5 +1,3 @@
-# 📦 Inventory Management System
-
 A simple Inventory Management System built with **Django** for managing products, users, and stock levels. This project is designed for educational purposes and demonstrates authentication, role-based access control, and PostgreSQL integration.
 
 ## Team Members
