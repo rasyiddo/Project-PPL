@@ -1,13 +1,10 @@
-# 📦 Inventory Management System
-
 A simple Inventory Management System built with **Django** for managing products, users, and stock levels. This project is designed for educational purposes and demonstrates authentication, role-based access control, and PostgreSQL integration.
 
 ## Team Members
-
-1. Ferry Yoshua Sanaky (01085250017) 
-2. Leonardus Kevin Tanjung (01085240011) 
-3. Sulaiman Rasyid Dinitra Aziz (01085240014) 
-4. Trianto (01085240015)
+ 
+1. Leonardus Kevin Tanjung (01085240011) 
+2. Sulaiman Rasyid Dinitra Aziz (01085240014) 
+3. Trianto (01085240015)
 
 ## Features
 
@@ -136,4 +133,3 @@ Make sure to:
 * Set environment variables
 * Configure PostgreSQL database
 * Collect static files
-
