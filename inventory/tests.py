@@ -416,7 +416,7 @@ class InventoryRequestApprovalViewTest(TestCase):
         response = self.client.get(reverse('inventory_request_approval_list'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Current<br/>Stock')
+        self.assertContains(response, 'Stock')
         self.assertContains(response, 'Needs Procurement')
         self.assertContains(response, str(low_stock_product.stock))
         self.assertContains(response, 'NEW TABLET')
@@ -543,8 +543,8 @@ class WarehouseInventoryRequestViewTest(TestCase):
         response = self.client.get(reverse('warehouse_inventory_transaction_list'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Incoming')
-        self.assertContains(response, 'Outgoing')
+        self.assertContains(response, '+5')
+        self.assertContains(response, '-2')
         self.assertContains(response, product.name)
         self.assertContains(response, f'#{outgoing.inventory_request.id}')
         self.assertContains(response, date_filter(timezone.localtime(incoming.created_at), "M d, Y H:i"))

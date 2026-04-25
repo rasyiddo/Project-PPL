@@ -79,8 +79,7 @@ class ProcurementRequest(models.Model):
         ('PENDING', 'Pending'),
         ('APPROVED', 'Approved'),
         ('REJECTED', 'Rejected'),
-        ('ORDERED', 'Ordered / Waiting Delivery'),
-        ('FULFILLED', 'Stock Received'),
+        ('FULFILLED', 'Received'),
     ]
 
     inventory_request = models.ForeignKey('InventoryRequest', on_delete=models.SET_NULL, null=True, blank=True)

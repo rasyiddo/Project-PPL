@@ -49,70 +49,118 @@
 <div class="flex h-screen">
 
     <!-- SIDEBAR -->
-    <div class="w-64 bg-gray-900 text-white p-4 space-y-4 fixed h-screen overflow-y-auto">
+    <div class="w-64 bg-gray-950 text-white fixed h-screen overflow-y-auto flex flex-col">
 
-        <h2 class="text-xl font-bold">IMS Dashboard</h2>
-
-        <!-- Always visible -->
-        <a href="/" class="block py-2">Dashboard</a>
-
-        <!-- PRODUCT MODULE -->
-        {% if perms.inventory.view_product %}
-        <div>
-            <p class="text-gray-400 text-sm mt-4">PRODUCT</p>
-
-            {% if perms.inventory.add_product %}
-            <a href="/products/create/" class="block py-1">Add Product</a>
-            {% endif %}
-
-            <a href="/products/" class="block py-1">View Products</a>
+        <!-- Logo / Brand -->
+        <div class="px-5 py-5 border-b border-white/10">
+            <div class="flex items-center gap-3">
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-sm">IMS</div>
+                <span class="font-semibold text-white tracking-tight">Inventory System</span>
+            </div>
         </div>
-        {% endif %}
 
-        <!-- INVENTORY REQUEST -->
-        {% if perms.inventory.view_inventoryrequest %}
-        <div>
-            <p class="text-gray-400 text-sm mt-4">INVENTORY REQUESTS</p>
+        <!-- Nav -->
+        <nav class="flex-1 px-3 py-4 space-y-6 overflow-y-auto">
 
-            <a href="/requests/" class="block py-1">My Requests</a>
+            <!-- Dashboard -->
+            <div>
+                <a href="/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+                    <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                    Dashboard
+                </a>
+            </div>
 
-            {% if perms.inventory.add_inventoryrequest %}
-            <a href="/requests/create/" class="block py-1">New Request</a>
+            <!-- PRODUCTS -->
+            {% if perms.inventory.view_product %}
+            <div>
+                <p class="px-3 mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">Products</p>
+                <div class="space-y-0.5">
+                    <a href="/products/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/></svg>
+                        All Products
+                    </a>
+                    {% if perms.inventory.add_product %}
+                    <a href="/products/create/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Add Product
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
             {% endif %}
 
-            {% if perms.inventory.approve_inventoryrequest %}
-            <a href="/requests/approval/" class="block py-1">Approval List</a>
+            <!-- INVENTORY REQUESTS -->
+            {% if perms.inventory.view_inventoryrequest %}
+            <div>
+                <p class="px-3 mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">Inventory Requests</p>
+                <div class="space-y-0.5">
+                    <a href="/requests/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                        My Requests
+                    </a>
+                    {% if perms.inventory.add_inventoryrequest %}
+                    <a href="/requests/create/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        New Request
+                    </a>
+                    {% endif %}
+                    {% if perms.inventory.approve_inventoryrequest %}
+                    <a href="/requests/approval/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Approval List
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
             {% endif %}
-        </div>
-        {% endif %}
 
-        <!-- WAREHOUSE -->
-        {% if perms.inventory.add_inventorytransaction %}
-        <div>
-            <p class="text-gray-400 text-sm mt-4">WAREHOUSE</p>
-            <a href="/warehouse/requests/" class="block py-1">Fulfillment Queue</a>
-            {% if perms.inventory.view_inventorytransaction %}
-            <a href="/warehouse/transactions/" class="block py-1">Transaction History</a>
+            <!-- WAREHOUSE -->
+            {% if perms.inventory.add_inventorytransaction or perms.inventory.view_inventorytransaction %}
+            <div>
+                <p class="px-3 mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">Warehouse</p>
+                <div class="space-y-0.5">
+                    {% if perms.inventory.add_inventorytransaction %}
+                    <a href="/warehouse/requests/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                        Fulfillment Queue
+                    </a>
+                    {% endif %}
+                    {% if perms.inventory.view_inventorytransaction %}
+                    <a href="/warehouse/transactions/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        Transaction History
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
             {% endif %}
-        </div>
-        {% endif %}
 
-        <!-- PROCUREMENT -->
-        {% if perms.inventory.view_procurementrequest or perms.inventory.add_procurementrequest %}
-        <div>
-            <p class="text-gray-400 text-sm mt-4">PROCUREMENT</p>
+            <!-- PROCUREMENT -->
+            {% if perms.inventory.view_procurementrequest or perms.inventory.add_procurementrequest %}
+            <div>
+                <p class="px-3 mb-1 text-xs font-semibold uppercase tracking-widest text-gray-500">Procurement</p>
+                <div class="space-y-0.5">
+                    {% if perms.inventory.add_procurementrequest %}
+                    <a href="/procurement/list/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                        My Procurements
+                    </a>
+                    <a href="/procurement/create/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        New Request
+                    </a>
+                    {% endif %}
+                    {% if perms.inventory.approve_procurementrequest %}
+                    <a href="/procurement/approval/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Approval List
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
 
-            {% if perms.inventory.add_procurementrequest %}
-            <a href="/procurement/list/" class="block py-1">My Procurements</a>
-            {% endif %}
-            {% if perms.inventory.add_procurementrequest %}
-            <a href="/procurement/create/" class="block py-1">New Request</a>
-            {% endif %}
-            {% if perms.inventory.approve_procurementrequest %}
-            <a href="/procurement/approval/" class="block py-1">Approval List</a>
-            {% endif %}
-        </div>
-        {% endif %}
+        </nav>
 
     </div>
 

@@ -26,7 +26,7 @@
         <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-lg flex-shrink-0">⚠️</div>
         <div>
           <p class="text-2xl font-bold text-amber-600">{{ low_stock_count }}</p>
-          <p class="text-sm text-gray-500">Low Stock (&lt; 10 units)</p>
+          <p class="text-sm text-gray-500">Low Stock</p>
         </div>
       </div>
       <div class="bg-white rounded-xl border shadow-sm p-5 flex items-center gap-4">
@@ -128,7 +128,7 @@
             </td>
             <td class="p-3 align-middle space-x-3">
               {% if perms.inventory.view_product %}
-              <a href="{% url 'product_detail' p.id %}" class="inline-block rounded bg-blue-600 px-2 py-1 text-white text-xs">Detail</a>
+              <a href="{% url 'product_detail' p.id %}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Detail</a>
               {% endif %}
               {% if perms.inventory.add_inventoryrequest %}
               <a href="{% url 'inventory_request_create' %}?product={{ p.id }}" class="text-emerald-600 hover:underline">Request</a>

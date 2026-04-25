@@ -355,9 +355,13 @@ def product_detail(request, pk):
 @login_required
 @permission_required('inventory.view_product', raise_exception=True)
 def product_list(request):
+    q = request.GET.get('q', '').strip()
     products = Product.objects.all()
+    if q:
+        products = products.filter(name__icontains=q)
     return render(request, 'inventory/product_list.html', {
-        'products': products
+        'products': products,
+        'q': q,
     })
 
 
