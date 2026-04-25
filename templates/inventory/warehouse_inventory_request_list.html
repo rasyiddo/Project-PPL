@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold">Warehouse Fulfillment Queue</h1>
+</div>
+
+<table class="w-full bg-white shadow rounded">
+    <tr class="border-b">
+        <th class="p-2 text-left">ID</th>
+        <th class="p-2 text-left">Product</th>
+        <th class="p-2 text-left">Requested By</th>
+        <th class="p-2 text-left">Quantity</th>
+        <th class="p-2 text-left">Available Stock</th>
+        <th class="p-2 text-left">Approved At</th>
+        <th class="p-2 text-left">Action</th>
+    </tr>
+
+    {% for inventory_request in inventory_requests %}
+    <tr class="border-b">
+        <td class="p-2">{{ inventory_request.id }}</td>
+        <td class="p-2">{{ inventory_request.product.name }}</td>
+        <td class="p-2">{{ inventory_request.created_by|default:"-" }}</td>
+        <td class="p-2">{{ inventory_request.quantity }}</td>
+        <td class="p-2">{{ inventory_request.product.stock }}</td>
+        <td class="p-2">
+            {% if inventory_request.approved_at %}
+            {{ inventory_request.approved_at|date:"M d, Y H:i" }}
+            {% else %}
+            -
+            {% endif %}
+        </td>
+        <td class="p-2">
+            <form method="post" action="{% url 'warehouse_inventory_request_fulfill' inventory_request.id %}">
+                {% csrf_token %}
+                <button class="rounded bg-blue-600 px-3 py-2 text-white">
+                    Fulfill
+                </button>
+            </form>
+        </td>
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="7" class="p-4 text-center text-gray-500">No approved requests are ready for fulfillment.</td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

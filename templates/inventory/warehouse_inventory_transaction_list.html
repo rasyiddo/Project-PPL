@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold">Warehouse Transaction History</h1>
+</div>
+
+<table class="w-full bg-white shadow rounded">
+    <tr class="border-b">
+        <th class="p-2 text-left">Time</th>
+        <th class="p-2 text-left">Product</th>
+        <th class="p-2 text-left">Type</th>
+        <th class="p-2 text-left">Quantity</th>
+        <th class="p-2 text-left">Request</th>
+        <th class="p-2 text-left">Recorded By</th>
+    </tr>
+
+    {% for transaction in transactions %}
+    <tr class="border-b">
+        <td class="p-2">{{ transaction.created_at|date:"M d, Y H:i" }}</td>
+        <td class="p-2">{{ transaction.product.name|default:"-" }}</td>
+        <td class="p-2">
+            <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium
+                {% if transaction.transaction_type == 'IN' %}bg-emerald-100 text-emerald-800
+                {% elif transaction.transaction_type == 'OUT' %}bg-red-100 text-red-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ transaction.get_transaction_type_display }}
+            </span>
+        </td>
+        <td class="p-2">{{ transaction.quantity }}</td>
+        <td class="p-2">
+            {% if transaction.inventory_request %}
+            #{{ transaction.inventory_request.id }}
+            {% else %}
+            -
+            {% endif %}
+        </td>
+        <td class="p-2">{{ transaction.created_by|default:"-" }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="6" class="p-4 text-center text-gray-500">No inventory transactions available.</td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

@@ -74,15 +74,27 @@
         <div>
             <p class="text-gray-400 text-sm mt-4">INVENTORY REQUESTS</p>
 
+            <a href="/requests/" class="block py-1">My Requests</a>
+
             {% if perms.inventory.add_inventoryrequest %}
             <a href="/requests/create/" class="block py-1">New Request</a>
             {% endif %}
 
             {% if perms.inventory.approve_inventoryrequest %}
-            <a href="/requests/approval/" class="block py-1">Approve Requests</a>
+            <a href="/requests/approval/" class="block py-1">Approval List</a>
             {% endif %}
+        </div>
+        {% endif %}
 
-            <a href="/requests/" class="block py-1">My Requests</a>
+        <!-- WAREHOUSE -->
+        {% if perms.inventory.add_inventorytransaction %}
+        <div>
+            <p class="text-gray-400 text-sm mt-4">WAREHOUSE</p>
+
+            <a href="/warehouse/requests/" class="block py-1">Fulfill Requests</a>
+            {% if perms.inventory.view_inventorytransaction %}
+            <a href="/warehouse/transactions/" class="block py-1">Transaction History</a>
+            {% endif %}
         </div>
         {% endif %}
 
