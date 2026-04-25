@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load currency %}
+
+{% block content %}
+
+<div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold">My Procurements</h1>
+</div>
+
+<table class="w-full bg-white shadow rounded">
+    <tr class="border-b">
+        <th class="p-2 text-left">ID</th>
+        <th class="p-2 text-left">Inventory Request</th>
+        <th class="p-2 text-left">Product</th>
+        <th class="p-2 text-left">Quantity</th>
+        <th class="p-2 text-left">Price</th>
+        <th class="p-2 text-left">Status</th>
+        <th class="p-2 text-left">Notes</th>
+    </tr>
+
+    {% for procurement_request in procurement_requests %}
+    <tr class="border-b align-top">
+        <td class="p-2">#{{ procurement_request.id }}</td>
+        <td class="p-2">
+            {% if procurement_request.inventory_request %}
+            #{{ procurement_request.inventory_request.id }}
+            {% else %}
+            -
+            {% endif %}
+        </td>
+        <td class="p-2">
+            {% if procurement_request.product %}
+            {{ procurement_request.product.name }}
+            {% else %}
+            {{ procurement_request.product_name }}
+            {% endif %}
+        </td>
+        <td class="p-2">{{ procurement_request.quantity }}</td>
+        <td class="p-2">{{ procurement_request.price|idr_currency }}</td>
+        <td class="p-2">
+            <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium
+                {% if procurement_request.status == 'PENDING' %}bg-amber-100 text-amber-800
+                {% elif procurement_request.status == 'APPROVED' %}bg-emerald-100 text-emerald-800
+                {% elif procurement_request.status == 'REJECTED' %}bg-red-100 text-red-800
+                {% elif procurement_request.status == 'ORDERED' %}bg-sky-100 text-sky-800
+                {% elif procurement_request.status == 'FULFILLED' %}bg-blue-100 text-blue-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ procurement_request.get_status_display }}
+            </span>
+        </td>
+        <td class="p-2">{{ procurement_request.notes|default:"-" }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="7" class="p-4 text-center text-gray-500">No procurement requests created yet.</td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1 class="text-2xl font-bold mb-4">Create Procurement Request</h1>
+
+<div class="mb-4 rounded bg-white p-4 shadow">
+    <p><span class="font-semibold">Inventory Request:</span> #{{ inventory_request.id }}</p>
+    <p><span class="font-semibold">Product:</span>
+        {% if inventory_request.product %}
+        {{ inventory_request.product.name }}
+        {% else %}
+        {{ inventory_request.product_name }}
+        {% endif %}
+    </p>
+    <p><span class="font-semibold">Quantity:</span> {{ inventory_request.quantity }}</p>
+    <p><span class="font-semibold">Current Stock:</span>
+        {% if inventory_request.product %}
+        {{ inventory_request.product.stock }}
+        {% else %}
+        -
+        {% endif %}
+    </p>
+</div>
+
+<form method="post" class="bg-white p-4 rounded shadow space-y-4">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <span class="text-red-500">{{ form.non_field_errors }}</span>
+    {% endif %}
+
+    <div>
+        {{ form.price.label_tag }}
+        <div class="flex">
+            <span class="inline-flex items-center rounded-l-lg border border-r-0 bg-gray-100 px-3 text-gray-700">
+                Rp
+            </span>
+            {{ form.price }}
+        </div>
+        <p class="mt-1 text-xs text-gray-500">Use IDR format. Example: 1.250.000</p>
+        {% if form.price.errors %}
+        <span class="text-red-500">{{ form.price.errors }}</span>
+        {% endif %}
+    </div>
+
+    <div>
+        {{ form.notes.label_tag }}
+        {{ form.notes }}
+        {% if form.notes.errors %}
+        <span class="text-red-500">{{ form.notes.errors }}</span>
+        {% endif %}
+    </div>
+
+    <button class="bg-orange-600 text-white px-4 py-2 rounded">
+        Submit Procurement Request
+    </button>
+</form>
+
+<script>
+    $(document).ready(function () {
+        const priceInput = document.getElementById("id_price");
+
+        function formatIdr(value) {
+            const digitsOnly = value.replace(/\D/g, "");
+            if (!digitsOnly) {
+                return "";
+            }
+            return digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        }
+
+        if (priceInput) {
+            priceInput.value = formatIdr(priceInput.value);
+            priceInput.addEventListener("input", function () {
+                this.value = formatIdr(this.value);
+            });
+        }
+    });
+</script>
+
+{% endblock %}

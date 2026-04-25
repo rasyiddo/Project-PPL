@@ -20,10 +20,22 @@
     {% for inventory_request in inventory_requests %}
     <tr class="border-b">
         <td class="p-2">{{ inventory_request.id }}</td>
-        <td class="p-2">{{ inventory_request.product.name }}</td>
+        <td class="p-2">
+            {% if inventory_request.product %}
+            {{ inventory_request.product.name }}
+            {% else %}
+            {{ inventory_request.product_name }}
+            {% endif %}
+        </td>
         <td class="p-2">{{ inventory_request.created_by|default:"-" }}</td>
         <td class="p-2">{{ inventory_request.quantity }}</td>
-        <td class="p-2">{{ inventory_request.product.stock }}</td>
+        <td class="p-2">
+            {% if inventory_request.product %}
+            {{ inventory_request.product.stock }}
+            {% else %}
+            -
+            {% endif %}
+        </td>
         <td class="p-2">
             {% if inventory_request.approved_at %}
             {{ inventory_request.approved_at|date:"M d, Y H:i" }}

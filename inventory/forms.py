@@ -1,7 +1,9 @@
+from decimal import Decimal, InvalidOperation
+
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 
-from .models import Product, InventoryRequest
+from .models import Product, InventoryRequest, ProcurementRequest
 
 
 
@@ -113,3 +115,46 @@ class InventoryRequestForm(forms.ModelForm):
             raise forms.ValidationError("Please provide a reason for the request.")
 
         return cleaned_data
+
+
+class ProcurementRequestForm(forms.ModelForm):
+    price = forms.CharField(widget=forms.TextInput(attrs={
+        'class': 'w-full rounded-r-lg border border-l-0 px-3 py-2',
+        'inputmode': 'numeric',
+        'autocomplete': 'off',
+        'placeholder': '1.250.000'
+    }))
+
+    class Meta:
+        model = ProcurementRequest
+        fields = ['price', 'notes']
+        widgets = {
+            'notes': forms.Textarea(attrs={
+                'class': 'w-full border rounded-lg px-3 py-2',
+                'rows': 4,
+                'placeholder': 'Add procurement notes'
+            }),
+        }
+
+    def clean_price(self):
+        raw_price = (self.cleaned_data.get('price') or '').strip().replace('Rp', '').replace('rp', '')
+        normalized = ''.join(ch for ch in raw_price if ch.isdigit() or ch in '.,')
+
+        if not normalized:
+            raise forms.ValidationError("Price must be greater than 0.")
+
+        if ',' in normalized:
+            normalized = normalized.replace('.', '').replace(',', '.')
+        elif normalized.count('.') == 1 and len(normalized.split('.')[-1]) <= 2:
+            normalized = normalized
+        else:
+            normalized = normalized.replace('.', '')
+
+        try:
+            price = Decimal(normalized)
+        except InvalidOperation as exc:
+            raise forms.ValidationError("Enter a valid IDR amount.") from exc
+
+        if price <= 0:
+            raise forms.ValidationError("Price must be greater than 0.")
+        return price

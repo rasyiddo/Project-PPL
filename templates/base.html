@@ -90,8 +90,7 @@
         {% if perms.inventory.add_inventorytransaction %}
         <div>
             <p class="text-gray-400 text-sm mt-4">WAREHOUSE</p>
-
-            <a href="/warehouse/requests/" class="block py-1">Fulfill Requests</a>
+            <a href="/warehouse/requests/" class="block py-1">Fulfillment Queue</a>
             {% if perms.inventory.view_inventorytransaction %}
             <a href="/warehouse/transactions/" class="block py-1">Transaction History</a>
             {% endif %}
@@ -99,19 +98,16 @@
         {% endif %}
 
         <!-- PROCUREMENT -->
-        {% if perms.inventory.view_procurementrequest %}
         <div>
             <p class="text-gray-400 text-sm mt-4">PROCUREMENT</p>
 
-            {% if perms.inventory.add_procurementrequest %}
-            <a href="/procurement/create/" class="block py-1">New Request</a>
+            {% if perms.inventory.view_procurementrequest %}
+            <a href="/procurement/list/" class="block py-1">My Procurements</a>
             {% endif %}
-
             {% if perms.inventory.approve_procurementrequest %}
-            <a href="/procurement/approval/" class="block py-1">Pending Requests</a>
+            <a href="/procurement/approval/" class="block py-1">Approval List</a>
             {% endif %}
         </div>
-        {% endif %}
 
         <!-- LOGOUT -->
         <form method="post" action="{% url 'logout' %}" class="mt-6">
