@@ -79,27 +79,25 @@
             {% endif %}
 
             {% if perms.inventory.approve_inventoryrequest %}
-            <a href="/requests/approval/" class="block py-1">Pending Requests</a>
+            <a href="/requests/approval/" class="block py-1">Approve Requests</a>
             {% endif %}
 
             <a href="/requests/" class="block py-1">My Requests</a>
         </div>
         {% endif %}
 
-        <!-- PROCUREMENT (Manager only) -->
+        <!-- PROCUREMENT -->
         {% if perms.inventory.view_procurementrequest %}
         <div>
             <p class="text-gray-400 text-sm mt-4">PROCUREMENT</p>
 
             {% if perms.inventory.add_procurementrequest %}
-            <a href="/requests/create/" class="block py-1">New Request</a>
+            <a href="/procurement/create/" class="block py-1">New Request</a>
             {% endif %}
 
             {% if perms.inventory.approve_procurementrequest %}
-            <a href="/requests/approval/" class="block py-1">Pending Requests</a>
+            <a href="/procurement/approval/" class="block py-1">Pending Requests</a>
             {% endif %}
-
-            <a href="/procurement/" class="block py-1">Procurement Requests</a>
         </div>
         {% endif %}
 
