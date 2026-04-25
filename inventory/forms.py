@@ -4,6 +4,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from .models import Product, InventoryRequest
 
 
+
 class CustomLoginForm(AuthenticationForm):
     username = forms.CharField(widget=forms.TextInput(attrs={
         'class': 'w-full border rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500'
@@ -44,7 +45,9 @@ class ProductForm(forms.ModelForm):
 
     def clean_stock(self):
         stock = self.cleaned_data.get('stock')
-        if stock < 0:
+        if not stock:
+            raise forms.ValidationError("Stock field is required.")
+        if stock <= 0:
             raise forms.ValidationError("Stock cannot be negative.")
         return stock
 
