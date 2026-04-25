@@ -188,10 +188,21 @@ def get_inventory_request_approval_queryset(user):
 def get_warehouse_fulfillment_queryset():
     return (
         InventoryRequest.objects
-        .filter(status='APPROVED')
-        .exclude(procurementrequest__status__in=['PENDING', 'APPROVED', 'ORDERED', 'FULFILLED'])
+        .filter(status__in=['APPROVED', 'FULFILLED'])
+        .exclude(
+            status='APPROVED',
+            procurementrequest__status__in=['PENDING', 'APPROVED', 'ORDERED', 'FULFILLED']
+        )
         .select_related('product', 'created_by', 'approved_by')
-        .order_by('-approved_at', '-created_at')
+        .annotate(
+            fulfillment_priority=Case(
+                When(status='APPROVED', then=Value(0)),
+                When(status='FULFILLED', then=Value(1)),
+                default=Value(2),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by('fulfillment_priority', '-approved_at', '-created_at')
     )
 
 

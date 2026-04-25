@@ -107,7 +107,10 @@
                     {% if perms.inventory.approve_inventoryrequest %}
                     <a href="/requests/approval/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
                         <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        Approval List
+                        <span class="flex-1">Approval List</span>
+                        {% if sidebar_ir_pending %}
+                        <span class="ml-auto inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white leading-none min-w-[1.25rem]">{{ sidebar_ir_pending }}</span>
+                        {% endif %}
                     </a>
                     {% endif %}
                 </div>
@@ -122,7 +125,10 @@
                     {% if perms.inventory.add_inventorytransaction %}
                     <a href="/warehouse/requests/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
                         <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
-                        Fulfillment Queue
+                        <span class="flex-1">Fulfillment Queue</span>
+                        {% if sidebar_fulfillment_pending %}
+                        <span class="ml-auto inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white leading-none min-w-[1.25rem]">{{ sidebar_fulfillment_pending }}</span>
+                        {% endif %}
                     </a>
                     {% endif %}
                     {% if perms.inventory.view_inventorytransaction %}
@@ -153,7 +159,10 @@
                     {% if perms.inventory.approve_procurementrequest %}
                     <a href="/procurement/approval/" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors">
                         <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        Approval List
+                        <span class="flex-1">Approval List</span>
+                        {% if sidebar_pr_pending %}
+                        <span class="ml-auto inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white leading-none min-w-[1.25rem]">{{ sidebar_pr_pending }}</span>
+                        {% endif %}
                     </a>
                     {% endif %}
                 </div>
