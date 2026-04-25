@@ -2,7 +2,46 @@
 <html lang="en">
 <head>
     <title>Inventory Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet"/>
+
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <style>
+        /* Select2 container */
+        .select2-container .select2-selection--single {
+            height: 42px;
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+        }
+
+        /* Text alignment */
+        .select2-selection__rendered {
+            padding-left: 10px;
+            line-height: 40px;
+            color: #111827; /* gray-900 */
+        }
+
+        /* Arrow alignment */
+        .select2-selection__arrow {
+            height: 40px;
+        }
+
+        /* Dropdown */
+        .select2-dropdown {
+            border-radius: 0.5rem;
+            border: 1px solid #d1d5db;
+        }
+
+        /* Search input */
+        .select2-search__field {
+            border-radius: 0.375rem;
+            padding: 6px;
+        }
+    </style>
 </head>
 
 <body class="bg-gray-100">

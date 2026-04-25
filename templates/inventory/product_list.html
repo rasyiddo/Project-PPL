@@ -24,10 +24,16 @@
     <tr class="border-b">
         <td class="p-2">{{ product.name }}</td>
         <td class="p-2">{{ product.stock }}</td>
-        <td class="p-2">
+        <td class="p-2 space-x-3">
             {% if perms.inventory.change_product %}
             <a href="{% url 'product_update' product.id %}" class="text-blue-600">
                 Edit
+            </a>
+            {% endif %}
+
+            {% if perms.inventory.add_inventoryrequest %}
+            <a href="{% url 'inventory_request_create' %}?product={{ product.id }}" class="text-green-600">
+                Request Inventory
             </a>
             {% endif %}
         </td>
