@@ -6,7 +6,7 @@
 
   <!-- Breadcrumb & back -->
   <div class="flex items-center gap-2 text-sm text-gray-500">
-    <a href="{% url 'inventory_request_list' %}" class="hover:text-blue-600">Inventory Requests</a>
+    <a href="{{ request.GET.next|default:'/requests/' }}" class="hover:text-blue-600">← Back</a>
     <span>/</span>
     <span class="text-gray-900 font-medium">IR-{{ ir.id|stringformat:"05d" }}</span>
   </div>

@@ -42,7 +42,7 @@
           </td>
           <td class="px-4 py-3 align-middle text-center">
             {% if procurement_request.inventory_request %}
-            <a href="{% url 'inventory_request_detail' procurement_request.inventory_request.id %}" class="font-mono text-xs font-semibold text-blue-600 hover:underline">IR-{{ procurement_request.inventory_request.id|stringformat:"05d" }}</a>
+            <a href="{% url 'inventory_request_detail' procurement_request.inventory_request.id %}?next={{ request.path }}" class="font-mono text-xs font-semibold text-blue-600 hover:underline">IR-{{ procurement_request.inventory_request.id|stringformat:"05d" }}</a>
             {% else %}
             <span class="text-xs text-gray-400">Standalone</span>
             {% endif %}
@@ -105,7 +105,7 @@
           </td>
           <td class="px-4 py-3 align-middle">
             <div class="flex flex-wrap gap-1.5">
-              <a href="{% url 'procurement_request_detail' procurement_request.id %}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Detail</a>
+              <a href="{% url 'procurement_request_detail' procurement_request.id %}?next={{ request.path }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Detail</a>
               {% if mode == 'approver' and procurement_request.status == 'PENDING' %}
               <form method="post" action="{% url 'procurement_request_decide' procurement_request.id %}" class="inline">
                 {% csrf_token %}

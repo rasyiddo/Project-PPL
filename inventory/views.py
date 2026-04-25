@@ -185,8 +185,8 @@ def get_inventory_request_approval_queryset(user):
     )
 
 
-def get_warehouse_fulfillment_queryset():
-    return (
+def get_warehouse_fulfillment_queryset(user=None):
+    qs = (
         InventoryRequest.objects
         .filter(status__in=['APPROVED', 'FULFILLED'])
         .exclude(
@@ -204,6 +204,9 @@ def get_warehouse_fulfillment_queryset():
         )
         .order_by('fulfillment_priority', '-approved_at', '-created_at')
     )
+    if user is not None:
+        qs = qs.exclude(created_by=user)
+    return qs
 
 
 def get_procurement_request_approval_queryset():
@@ -395,13 +398,14 @@ def product_create(request):
                         notes='Initial stock on product creation',
                         created_by=request.user,
                     )
-            return redirect('product_list')
+            return redirect(request.POST.get('next') or 'product_list')
     else:
         form = ProductForm()
 
     return render(request, 'inventory/product_form.html', {
         'form': form,
         'is_edit': False,
+        'next': request.GET.get('next', ''),
     })
 
 
@@ -429,7 +433,7 @@ def product_update(request, pk):
                         notes=form.cleaned_data.get('notes', ''),
                         created_by=request.user,
                     )
-            return redirect('product_list')
+            return redirect(request.POST.get('next') or 'product_list')
     else:
         form = ProductForm(instance=product)
 
@@ -437,6 +441,7 @@ def product_update(request, pk):
         'form': form,
         'is_edit': True,
         'product': product,
+        'next': request.GET.get('next', request.POST.get('next', '')),
     })
 
 
@@ -508,7 +513,7 @@ def inventory_request_decide(request, pk):
 @login_required
 @permission_required('inventory.add_inventorytransaction', raise_exception=True)
 def warehouse_inventory_request_list(request):
-    inventory_requests = get_warehouse_fulfillment_queryset()
+    inventory_requests = get_warehouse_fulfillment_queryset(user=request.user)
     return render(request, 'inventory/warehouse_inventory_request_list.html', {
         'inventory_requests': inventory_requests
     })
@@ -615,13 +620,14 @@ def warehouse_procurement_request_create(request, pk):
         if form.is_valid():
             procurement_request = form.save(commit=False)
             procurement_request.save()
-            return redirect('procurement_request_list')
+            return redirect(request.POST.get('next') or 'procurement_request_list')
     else:
         form = ProcurementRequestForm(instance=procurement_request)
 
     return render(request, 'inventory/procurement_request_form.html', {
         'form': form,
         'inventory_request': inventory_request,
+        'next': request.GET.get('next', ''),
     })
 
 
@@ -763,20 +769,20 @@ def warehouse_inventory_request_fulfill(request, pk):
 
     with transaction.atomic():
         inventory_request = get_object_or_404(
-            InventoryRequest.objects.select_for_update().select_related('product'),
+            InventoryRequest.objects.select_for_update(of=('self',)),
             pk=pk,
         )
 
         if inventory_request.status != 'APPROVED':
             return redirect('warehouse_inventory_request_list')
 
-        if (
-            not inventory_request.product
-            or inventory_request.product.stock < inventory_request.quantity
-        ):
+        if not inventory_request.product_id:
             return redirect('warehouse_procurement_request_create', pk=inventory_request.pk)
 
-        product = inventory_request.product
+        product = Product.objects.select_for_update().get(pk=inventory_request.product_id)
+
+        if product.stock < inventory_request.quantity:
+            return redirect('warehouse_procurement_request_create', pk=inventory_request.pk)
         product.stock -= inventory_request.quantity
         product.save(update_fields=['stock'])
 

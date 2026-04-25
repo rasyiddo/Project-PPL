@@ -26,6 +26,7 @@ def sidebar_counts(request):
         ctx['sidebar_fulfillment_pending'] = (
             InventoryRequest.objects
             .filter(status='APPROVED')
+            .exclude(created_by=request.user)
             .exclude(procurementrequest__status__in=['PENDING', 'APPROVED', 'ORDERED', 'FULFILLED'])
             .count()
         )

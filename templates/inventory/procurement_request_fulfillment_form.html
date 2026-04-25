@@ -57,7 +57,7 @@
       <button class="inline-flex items-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700">
         Receive &amp; Fulfill
       </button>
-      <a href="/warehouse/requests/" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
+      <a href="{{ request.GET.next|default:'/warehouse/requests/' }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
     </div>
   </form>
 

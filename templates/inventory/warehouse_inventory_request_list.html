@@ -53,11 +53,11 @@
                         {% endif %}
                     </td>
                     <td class="px-4 py-3 align-middle">
-                        <a href="{% url 'inventory_request_detail' inventory_request.id %}"
+                        <a href="{% url 'inventory_request_detail' inventory_request.id %}?next={{ request.path }}"
                            class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Detail</a>
                         {% if inventory_request.status == 'APPROVED' %}
                             {% if not inventory_request.product or inventory_request.product.stock < inventory_request.quantity %}
-                            <a href="{% url 'procurement_request_create' %}?inventory_request={{ inventory_request.id }}"
+                            <a href="{% url 'warehouse_procurement_request_create' inventory_request.id %}?next={{ request.path }}"
                                class="inline-flex items-center rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600">Procure</a>
                             {% else %}
                             <form method="post" action="{% url 'warehouse_inventory_request_fulfill' inventory_request.id %}" class="inline-flex">

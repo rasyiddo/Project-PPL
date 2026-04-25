@@ -6,7 +6,7 @@
 
   <!-- Breadcrumb -->
   <div class="flex items-center gap-2 text-sm text-gray-500">
-    <a href="{% url 'procurement_request_list' %}" class="hover:text-blue-600">My Procurements</a>
+    <a href="{{ request.GET.next|default:'/procurement/list/' }}" class="hover:text-blue-600">← Back</a>
     <span>/</span>
     <span class="text-gray-900 font-medium">PR-{{ pr.id|stringformat:"05d" }}</span>
   </div>

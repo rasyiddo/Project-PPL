@@ -26,7 +26,7 @@
         {% endif %}
       </div>
       {% if perms.inventory.change_product %}
-      <a href="{% url 'product_update' product.id %}" class="text-sm text-blue-600 hover:underline">Edit Product</a>
+      <a href="{% url 'product_update' product.id %}?next={{ request.path }}" class="text-sm text-blue-600 hover:underline">Edit Product</a>
       {% endif %}
     </div>
 
