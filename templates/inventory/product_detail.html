@@ -126,9 +126,25 @@
               <a href="{% url 'inventory_request_detail' tx.inventory_request.id %}" class="text-blue-600 hover:underline font-mono">
                 IR-{{ tx.inventory_request.id|stringformat:"05d" }}
               </a>
+              {% elif tx.manual %}
+              <span class="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">Manual</span>
               {% else %}—{% endif %}
             </td>
-            <td class="p-3 align-middle text-gray-600">{{ tx.created_by|default:"—" }}</td>
+            <td class="p-3 align-middle text-gray-600">
+              {% if tx.notes %}
+              <div class="relative inline-block group">
+                <span class="cursor-default">{{ tx.created_by|default:"—" }}</span>
+                <span class="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-100 text-purple-600 text-xs cursor-help">?</span>
+                <div class="absolute bottom-full left-0 mb-2 z-50 hidden group-hover:block w-64 rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-lg">
+                  <p class="font-semibold text-gray-300 mb-1">Note</p>
+                  {{ tx.notes }}
+                  <div class="absolute top-full left-4 border-4 border-transparent border-t-gray-900"></div>
+                </div>
+              </div>
+              {% else %}
+              {{ tx.created_by|default:"—" }}
+              {% endif %}
+            </td>
             <td class="p-3 align-middle text-gray-400 text-xs">{{ tx.created_at|date:"M d, Y H:i" }}</td>
           </tr>
           {% endfor %}

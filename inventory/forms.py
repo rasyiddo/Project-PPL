@@ -17,6 +17,16 @@ class CustomLoginForm(AuthenticationForm):
 
 
 class ProductForm(forms.ModelForm):
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'w-full border rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500',
+            'rows': 2,
+            'placeholder': 'Explain the reason for the stock change'
+        }),
+        label='Adjustment Notes'
+    )
+
     class Meta:
         model = Product
         fields = ['name', 'stock']
@@ -46,11 +56,22 @@ class ProductForm(forms.ModelForm):
 
     def clean_stock(self):
         stock = self.cleaned_data.get('stock')
-        if not stock:
+        if stock is None:
             raise forms.ValidationError("Stock field is required.")
-        if stock <= 0:
+        if stock < 0:
             raise forms.ValidationError("Stock cannot be negative.")
         return stock
+
+    def clean(self):
+        cleaned_data = super().clean()
+        # On edit, notes are required if stock actually changes
+        if self.instance.pk:
+            new_stock = cleaned_data.get('stock')
+            if new_stock is not None and new_stock != self.instance.stock:
+                notes = (cleaned_data.get('notes') or '').strip()
+                if not notes:
+                    self.add_error('notes', 'Please provide a reason for the stock adjustment.')
+        return cleaned_data
 
 
 class InventoryRequestForm(forms.ModelForm):
