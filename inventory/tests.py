@@ -6,7 +6,7 @@ from django.template.defaultfilters import date as date_filter
 from django.urls import reverse
 from django.utils import timezone
 from inventory.forms import ProductForm, InventoryRequestForm
-from inventory.models import Product, InventoryRequest
+from inventory.models import Product, InventoryRequest, InventoryTransaction
 
 
 # region Product
@@ -396,5 +396,126 @@ class InventoryRequestApprovalViewTest(TestCase):
         inventory_request.refresh_from_db()
         self.assertEqual(inventory_request.status, 'PENDING')
         self.assertIsNone(inventory_request.approved_by)
+
+
+# endregion
+
+# region Warehouse Inventory
+
+class WarehouseInventoryRequestViewTest(TestCase):
+
+    def setUp(self):
+        self.staff = User.objects.create_user(username='warehouse', password='secret')
+        add_transaction_permission = Permission.objects.get(codename='add_inventorytransaction')
+        view_transaction_permission = Permission.objects.get(codename='view_inventorytransaction')
+        self.staff.user_permissions.add(add_transaction_permission, view_transaction_permission)
+        self.client.force_login(self.staff)
+
+    def test_fulfillment_list_only_shows_approved_requests_with_enough_stock(self):
+        ready_product = Product.objects.create(name='MOUSE', stock=10)
+        not_enough_stock_product = Product.objects.create(name='PRINTER', stock=1)
+
+        ready_request = InventoryRequest.objects.create(
+            product=ready_product,
+            quantity=3,
+            reason='Office use',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+        InventoryRequest.objects.create(
+            product=not_enough_stock_product,
+            quantity=2,
+            reason='Needs procurement',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+        InventoryRequest.objects.create(
+            product=ready_product,
+            quantity=1,
+            reason='Still pending',
+            status='PENDING',
+        )
+
+        response = self.client.get(reverse('warehouse_inventory_request_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, ready_request.product.name)
+        self.assertContains(response, reverse('warehouse_inventory_request_fulfill', args=[ready_request.id]))
+        self.assertNotContains(response, 'Needs procurement')
+        self.assertNotContains(response, 'Still pending')
+
+    def test_fulfill_action_updates_stock_request_and_transaction(self):
+        product = Product.objects.create(name='KEYBOARD', stock=8)
+        inventory_request = InventoryRequest.objects.create(
+            product=product,
+            quantity=3,
+            reason='Replacement',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+
+        response = self.client.post(reverse('warehouse_inventory_request_fulfill', args=[inventory_request.id]))
+
+        self.assertEqual(response.status_code, 302)
+        product.refresh_from_db()
+        inventory_request.refresh_from_db()
+        self.assertEqual(product.stock, 5)
+        self.assertEqual(inventory_request.status, 'FULFILLED')
+
+        transaction = InventoryTransaction.objects.get(inventory_request=inventory_request)
+        self.assertEqual(transaction.product, product)
+        self.assertEqual(transaction.quantity, 3)
+        self.assertEqual(transaction.transaction_type, 'OUT')
+        self.assertEqual(transaction.created_by, self.staff)
+
+    def test_fulfill_action_does_not_process_when_stock_is_insufficient(self):
+        product = Product.objects.create(name='LAPTOP', stock=1)
+        inventory_request = InventoryRequest.objects.create(
+            product=product,
+            quantity=3,
+            reason='Replacement',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+
+        response = self.client.post(reverse('warehouse_inventory_request_fulfill', args=[inventory_request.id]))
+
+        self.assertEqual(response.status_code, 302)
+        product.refresh_from_db()
+        inventory_request.refresh_from_db()
+        self.assertEqual(product.stock, 1)
+        self.assertEqual(inventory_request.status, 'APPROVED')
+        self.assertFalse(InventoryTransaction.objects.filter(inventory_request=inventory_request).exists())
+
+    def test_transaction_history_shows_stock_movements(self):
+        product = Product.objects.create(name='MONITOR', stock=6)
+        inventory_request = InventoryRequest.objects.create(
+            product=product,
+            quantity=2,
+            reason='Replacement',
+            status='FULFILLED',
+        )
+        incoming = InventoryTransaction.objects.create(
+            product=product,
+            quantity=5,
+            transaction_type='IN',
+            created_by=self.staff,
+        )
+        outgoing = InventoryTransaction.objects.create(
+            product=product,
+            quantity=2,
+            transaction_type='OUT',
+            inventory_request=inventory_request,
+            created_by=self.staff,
+        )
+
+        response = self.client.get(reverse('warehouse_inventory_transaction_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Incoming')
+        self.assertContains(response, 'Outgoing')
+        self.assertContains(response, product.name)
+        self.assertContains(response, f'#{outgoing.inventory_request.id}')
+        self.assertContains(response, date_filter(timezone.localtime(incoming.created_at), "M d, Y H:i"))
 
 # endregion

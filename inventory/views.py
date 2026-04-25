@@ -1,10 +1,11 @@
 from django.contrib.auth.decorators import login_required, permission_required
-from django.db.models import Case, IntegerField, Value, When
+from django.db import transaction
+from django.db.models import Case, F, IntegerField, Value, When
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
 from .forms import ProductForm, InventoryRequestForm
-from .models import Product, InventoryRequest
+from .models import Product, InventoryRequest, InventoryTransaction
 
 
 def get_inventory_request_approval_queryset(user):
@@ -24,9 +25,23 @@ def get_inventory_request_approval_queryset(user):
     )
 
 
+def get_warehouse_fulfillment_queryset():
+    return (
+        InventoryRequest.objects
+        .filter(
+            status='APPROVED',
+            product__isnull=False,
+            product__stock__gte=F('quantity'),
+        )
+        .select_related('product', 'created_by', 'approved_by')
+        .order_by('-approved_at', '-created_at')
+    )
+
+
 @login_required
 def dashboard(request):
     return render(request, 'inventory/dashboard.html')
+
 
 @login_required
 @permission_required('inventory.view_product', raise_exception=True)
@@ -35,6 +50,7 @@ def product_list(request):
     return render(request, 'inventory/product_list.html', {
         'products': products
     })
+
 
 @login_required
 @permission_required('inventory.add_product', raise_exception=True)
@@ -50,6 +66,7 @@ def product_create(request):
     return render(request, 'inventory/product_form.html', {
         'form': form
     })
+
 
 @login_required
 @permission_required('inventory.change_product', raise_exception=True)
@@ -67,6 +84,7 @@ def product_update(request, pk):
     return render(request, 'inventory/product_form.html', {
         'form': form
     })
+
 
 @login_required
 @permission_required('inventory.view_inventoryrequest', raise_exception=True)
@@ -126,6 +144,65 @@ def inventory_request_decide(request, pk):
         inventory_request.save()
 
     return redirect('inventory_request_approval_list')
+
+
+@login_required
+@permission_required('inventory.add_inventorytransaction', raise_exception=True)
+def warehouse_inventory_request_list(request):
+    inventory_requests = get_warehouse_fulfillment_queryset()
+    return render(request, 'inventory/warehouse_inventory_request_list.html', {
+        'inventory_requests': inventory_requests
+    })
+
+
+@login_required
+@permission_required('inventory.view_inventorytransaction', raise_exception=True)
+def warehouse_inventory_transaction_list(request):
+    transactions = (
+        InventoryTransaction.objects
+        .select_related('product', 'created_by', 'inventory_request')
+        .order_by('-created_at')
+    )
+    return render(request, 'inventory/warehouse_inventory_transaction_list.html', {
+        'transactions': transactions
+    })
+
+
+@login_required
+@permission_required('inventory.add_inventorytransaction', raise_exception=True)
+def warehouse_inventory_request_fulfill(request, pk):
+    if request.method != 'POST':
+        return redirect('warehouse_inventory_request_list')
+
+    with transaction.atomic():
+        inventory_request = get_object_or_404(
+            InventoryRequest.objects.select_for_update().select_related('product'),
+            pk=pk,
+        )
+
+        if (inventory_request.status != 'APPROVED'
+                or not inventory_request.product
+                or inventory_request.product.stock < inventory_request.quantity
+        ):
+            return redirect('warehouse_inventory_request_list')
+
+        product = inventory_request.product
+        product.stock -= inventory_request.quantity
+        product.save(update_fields=['stock'])
+
+        InventoryTransaction.objects.create(
+            product=product,
+            quantity=inventory_request.quantity,
+            transaction_type='OUT',
+            inventory_request=inventory_request,
+            created_by=request.user,
+        )
+
+        inventory_request.status = 'FULFILLED'
+        inventory_request.save(update_fields=['status'])
+
+    return redirect('warehouse_inventory_request_list')
+
 
 @login_required
 @permission_required('inventory.add_inventoryrequest', raise_exception=True)
