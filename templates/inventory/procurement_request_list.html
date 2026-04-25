@@ -16,35 +16,32 @@
 <table class="w-full bg-white shadow rounded">
     <tr class="border-b">
         <th class="p-2 text-left" style="width: 100px">ID</th>
-        <th class="p-2 text-left">Inventory Request</th>
+        <th class="p-2 text-left">Request ID</th>
         <th class="p-2 text-left">Product</th>
-        <th class="p-2 text-left">Quantity</th>
         <th class="p-2 text-left">Price</th>
         <th class="p-2 text-left">Status</th>
-        <th class="p-2 text-left">Notes</th>
         <th class="p-2 text-left">Action</th>
     </tr>
 
     {% for procurement_request in procurement_requests %}
     <tr class="border-b align-top hover:bg-blue-50">
-        <td class="p-2 font-semibold text-gray-700">PR-{{ procurement_request.id|stringformat:"05d" }}</td>
-        <td class="p-2">
+        <td class="p-2 align-middle font-semibold text-gray-700">PR-{{ procurement_request.id|stringformat:"05d" }}</td>
+        <td class="p-2 align-middle font-semibold text-gray-700">
             {% if procurement_request.inventory_request %}
-            #{{ procurement_request.inventory_request.id }}
+            IR-{{ procurement_request.inventory_request.id|stringformat:"05d" }}</td>
             {% else %}
             -
             {% endif %}
         </td>
-        <td class="p-2">
+        <td class="p-2 align-middle align-middle">
             {% if procurement_request.product %}
-            {{ procurement_request.product.name }}
+            <a href="{% url 'product_detail' procurement_request.product.id %}?next={{ request.path }}" class="text-blue-600 hover:underline font-medium">{{ procurement_request.product.name }}</a>
             {% else %}
             {{ procurement_request.product_name }}
             {% endif %}
         </td>
-        <td class="p-2">{{ procurement_request.quantity }}</td>
-        <td class="p-2">{{ procurement_request.price|idr_currency }}</td>
-        <td class="p-2">
+        <td class="p-2 align-middle text-gray-700">{{ procurement_request.price|idr_currency }}</td>
+        <td class="p-2 align-middle align-middle">
             <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium
                 {% if procurement_request.status == 'PENDING' %}bg-amber-100 text-amber-800
                 {% elif procurement_request.status == 'APPROVED' %}bg-emerald-100 text-emerald-800
@@ -55,18 +52,16 @@
                 {{ procurement_request.get_status_display }}
             </span>
         </td>
-        <td class="p-2">{{ procurement_request.notes|default:"-" }}</td>
-        <td class="p-2">
+        <td class="p-2 align-middle space-y-1">
+            <a href="{% url 'procurement_request_detail' procurement_request.id %}" class="inline-block rounded bg-blue-600 px-3 py-2 text-white text-sm">Detail</a>
             {% if procurement_request.status == 'APPROVED' %}
-            <a href="{% url 'procurement_request_fulfill' procurement_request.id %}" class="text-blue-600">
+            <a href="{% url 'procurement_request_fulfill' procurement_request.id %}" class="block text-blue-600 text-sm">
                 Receive Items
             </a>
             {% elif procurement_request.status == 'REJECTED' and not procurement_request.inventory_request and perms.inventory.add_procurementrequest %}
-            <a href="{% url 'procurement_request_create' %}?from={{ procurement_request.id }}" class="text-blue-600 text-sm">
+            <a href="{% url 'procurement_request_create' %}?from={{ procurement_request.id }}" class="block text-blue-600 text-sm">
                 Re-submit
             </a>
-            {% else %}
-            <span class="text-sm text-gray-500">-</span>
             {% endif %}
         </td>
     </tr>

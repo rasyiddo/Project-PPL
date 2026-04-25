@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% load currency %}
+
+{% block content %}
+<div class="max-w-4xl space-y-6">
+
+  <!-- Breadcrumb -->
+  <div class="flex items-center gap-2 text-sm text-gray-500">
+    {% if request.GET.next %}
+    <a href="{{ request.GET.next }}" class="hover:text-blue-600">← Back</a>
+    <span>/</span>
+    {% else %}
+    <a href="{% url 'product_list' %}" class="hover:text-blue-600">Products</a>
+    <span>/</span>
+    {% endif %}
+    <span class="text-gray-900 font-medium">{{ product.name }}</span>
+  </div>
+
+  <!-- Header card -->
+  <div class="bg-white rounded-xl border shadow-sm p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 class="text-xl font-bold text-gray-900">{{ product.name }}</h1>
+        {% if product.created_by %}
+        <p class="text-sm text-gray-500 mt-1">Added by <span class="font-medium text-gray-700">{{ product.created_by }}</span> · {{ product.created_at|date:"M d, Y" }}</p>
+        {% endif %}
+      </div>
+      {% if perms.inventory.change_product %}
+      <a href="{% url 'product_update' product.id %}" class="text-sm text-blue-600 hover:underline">Edit Product</a>
+      {% endif %}
+    </div>
+
+    <!-- Stock indicator -->
+    <div class="mt-5 pt-5 border-t flex items-center gap-6">
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wide">Current Stock</p>
+        <p class="mt-1 text-3xl font-bold {% if product.stock == 0 %}text-red-600{% elif product.stock < 10 %}text-amber-600{% else %}text-gray-900{% endif %}">
+          {{ product.stock }}
+        </p>
+        {% if product.stock == 0 %}
+        <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 mt-1">Out of Stock</span>
+        {% elif product.stock < 10 %}
+        <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 mt-1">Low Stock</span>
+        {% else %}
+        <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 mt-1">In Stock</span>
+        {% endif %}
+      </div>
+      {% if in_total is not None %}
+      <div class="border-l pl-6">
+        <p class="text-xs text-gray-400 uppercase tracking-wide">Total Incoming</p>
+        <p class="mt-1 text-xl font-bold text-emerald-600">+{{ in_total }}</p>
+      </div>
+      <div class="border-l pl-6">
+        <p class="text-xs text-gray-400 uppercase tracking-wide">Total Outgoing</p>
+        <p class="mt-1 text-xl font-bold text-blue-600">−{{ out_total }}</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Stats row (IR / PR counts) -->
+  {% if ir_count is not None or pr_count is not None %}
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    {% if ir_count is not None %}
+    <div class="bg-white rounded-xl border shadow-sm p-5">
+      <p class="text-2xl font-bold text-gray-900">{{ ir_count }}</p>
+      <p class="text-sm text-gray-500 mt-1">Total Requests</p>
+      <div class="mt-2 h-1 rounded-full bg-blue-200"></div>
+    </div>
+    <div class="bg-white rounded-xl border shadow-sm p-5">
+      <p class="text-2xl font-bold text-blue-600">{{ ir_fulfilled_count }}</p>
+      <p class="text-sm text-gray-500 mt-1">Fulfilled</p>
+      <div class="mt-2 h-1 rounded-full bg-blue-200"></div>
+    </div>
+    {% endif %}
+    {% if pr_count is not None %}
+    <div class="bg-white rounded-xl border shadow-sm p-5">
+      <p class="text-2xl font-bold text-gray-900">{{ pr_count }}</p>
+      <p class="text-sm text-gray-500 mt-1">Procurement Orders</p>
+      <div class="mt-2 h-1 rounded-full bg-violet-200"></div>
+    </div>
+    <div class="bg-white rounded-xl border shadow-sm p-5">
+      <p class="text-2xl font-bold text-violet-600">{{ pr_fulfilled_count }}</p>
+      <p class="text-sm text-gray-500 mt-1">Stock Received</p>
+      <div class="mt-2 h-1 rounded-full bg-violet-200"></div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Transaction Timeline -->
+  {% if transactions %}
+  <div class="space-y-4">
+    <h2 class="text-base font-semibold text-gray-900">Stock History</h2>
+
+    <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-gray-50 border-b">
+            <th class="p-3 text-left font-medium text-gray-700">Type</th>
+            <th class="p-3 text-left font-medium text-gray-700">Qty</th>
+            <th class="p-3 text-left font-medium text-gray-700">Reference</th>
+            <th class="p-3 text-left font-medium text-gray-700">Recorded By</th>
+            <th class="p-3 text-left font-medium text-gray-700">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in transactions %}
+          <tr class="border-b hover:bg-blue-50">
+            <td class="p-3 align-middle align-middle">
+              {% if tx.transaction_type == 'IN' %}
+              <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">↑ Incoming</span>
+              {% else %}
+              <span class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">↓ Outgoing</span>
+              {% endif %}
+            </td>
+            <td class="p-3 align-middle font-mono font-semibold {% if tx.transaction_type == 'IN' %}text-emerald-600{% else %}text-blue-600{% endif %}">
+              {% if tx.transaction_type == 'IN' %}+{% else %}−{% endif %}{{ tx.quantity }}
+            </td>
+            <td class="p-3 align-middle text-gray-500 text-xs">
+              {% if tx.procurement_request %}
+              <a href="{% url 'procurement_request_detail' tx.procurement_request.id %}" class="text-blue-600 hover:underline font-mono">
+                PR-{{ tx.procurement_request.id|stringformat:"05d" }}
+              </a>
+              {% elif tx.inventory_request %}
+              <a href="{% url 'inventory_request_detail' tx.inventory_request.id %}" class="text-blue-600 hover:underline font-mono">
+                IR-{{ tx.inventory_request.id|stringformat:"05d" }}
+              </a>
+              {% else %}—{% endif %}
+            </td>
+            <td class="p-3 align-middle text-gray-600">{{ tx.created_by|default:"—" }}</td>
+            <td class="p-3 align-middle text-gray-400 text-xs">{{ tx.created_at|date:"M d, Y H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% elif transactions is not None %}
+  <div class="bg-gray-50 rounded-xl border border-dashed p-8 text-center text-sm text-gray-400">
+    No stock transactions recorded yet.
+  </div>
+  {% endif %}
+
+  <!-- Quick actions -->
+  <div class="flex gap-3">
+    {% if perms.inventory.add_inventoryrequest %}
+    <a href="{% url 'inventory_request_create' %}?product={{ product.id }}"
+       class="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+      + Request Inventory
+    </a>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

@@ -1,5 +1,193 @@
 {% extends "base.html" %}
+{% load currency %}
 
 {% block content %}
-<h1>Welcome to <strong>Inventory Management System!</strong></h1>
+<div class="space-y-8">
+
+  <!-- Header -->
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+    <p class="mt-1 text-sm text-gray-500">Welcome back, <span class="font-medium text-gray-700">{{ user.username }}</span>. Here's what's happening.</p>
+  </div>
+
+  <!-- Product Stats -->
+  {% if total_products is not None %}
+  <section>
+    <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Inventory</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-white rounded-xl border shadow-sm p-5 flex items-center gap-4">
+        <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-lg font-bold flex-shrink-0">📦</div>
+        <div>
+          <p class="text-2xl font-bold text-gray-900">{{ total_products }}</p>
+          <p class="text-sm text-gray-500">Total Products</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-5 flex items-center gap-4">
+        <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-lg flex-shrink-0">⚠️</div>
+        <div>
+          <p class="text-2xl font-bold text-amber-600">{{ low_stock_count }}</p>
+          <p class="text-sm text-gray-500">Low Stock (&lt; 10 units)</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-5 flex items-center gap-4">
+        <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg flex-shrink-0">🚫</div>
+        <div>
+          <p class="text-2xl font-bold text-red-600">{{ out_of_stock_count }}</p>
+          <p class="text-sm text-gray-500">Out of Stock</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- IR Stats -->
+  {% if ir_pending is not None %}
+  <section>
+    <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Inventory Requests</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div class="bg-white rounded-xl border shadow-sm p-5">
+        <p class="text-2xl font-bold text-amber-600">{{ ir_pending }}</p>
+        <p class="text-sm text-gray-500 mt-1">Pending</p>
+        <div class="mt-2 h-1 rounded-full bg-amber-200"></div>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-5">
+        <p class="text-2xl font-bold text-emerald-600">{{ ir_approved }}</p>
+        <p class="text-sm text-gray-500 mt-1">Approved</p>
+        <div class="mt-2 h-1 rounded-full bg-emerald-200"></div>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-5">
+        <p class="text-2xl font-bold text-blue-600">{{ ir_fulfilled }}</p>
+        <p class="text-sm text-gray-500 mt-1">Fulfilled</p>
+        <div class="mt-2 h-1 rounded-full bg-blue-200"></div>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-5">
+        <p class="text-2xl font-bold text-red-500">{{ ir_rejected }}</p>
+        <p class="text-sm text-gray-500 mt-1">Rejected</p>
+        <div class="mt-2 h-1 rounded-full bg-red-200"></div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- PR Stats -->
+  {% if pr_pending is not None %}
+  <section>
+    <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Procurement Requests</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div class="bg-white rounded-xl border shadow-sm p-5">
+        <p class="text-2xl font-bold text-amber-600">{{ pr_pending }}</p>
+        <p class="text-sm text-gray-500 mt-1">Pending</p>
+        <div class="mt-2 h-1 rounded-full bg-amber-200"></div>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-5">
+        <p class="text-2xl font-bold text-emerald-600">{{ pr_approved }}</p>
+        <p class="text-sm text-gray-500 mt-1">Approved</p>
+        <div class="mt-2 h-1 rounded-full bg-emerald-200"></div>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-5">
+        <p class="text-2xl font-bold text-orange-500">{{ pr_ordered }}</p>
+        <p class="text-sm text-gray-500 mt-1">Ordered</p>
+        <div class="mt-2 h-1 rounded-full bg-orange-200"></div>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-5">
+        <p class="text-2xl font-bold text-blue-600">{{ pr_fulfilled }}</p>
+        <p class="text-sm text-gray-500 mt-1">Stock Received</p>
+        <div class="mt-2 h-1 rounded-full bg-blue-200"></div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Low Stock Alert -->
+  {% if low_stock_products %}
+  <section>
+    <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">⚠️ Low Stock Alert</h2>
+    <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-amber-50 border-b">
+            <th class="p-3 text-left font-medium text-gray-700">Product</th>
+            <th class="p-3 text-left font-medium text-gray-700">Current Stock</th>
+            <th class="p-3 text-left font-medium text-gray-700">Status</th>
+            <th class="p-3 text-left font-medium text-gray-700">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in low_stock_products %}
+          <tr class="border-b hover:bg-amber-50/50">
+            <td class="p-3 align-middle font-medium text-gray-900">{{ p.name }}</td>
+            <td class="p-3 align-middle align-middle">
+              <span class="font-bold {% if p.stock == 0 %}text-red-600{% else %}text-amber-600{% endif %}">{{ p.stock }}</span>
+            </td>
+            <td class="p-3 align-middle align-middle">
+              {% if p.stock == 0 %}
+              <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Out of Stock</span>
+              {% else %}
+              <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">Low Stock</span>
+              {% endif %}
+            </td>
+            <td class="p-3 align-middle space-x-3">
+              {% if perms.inventory.view_product %}
+              <a href="{% url 'product_detail' p.id %}" class="inline-block rounded bg-blue-600 px-2 py-1 text-white text-xs">Detail</a>
+              {% endif %}
+              {% if perms.inventory.add_inventoryrequest %}
+              <a href="{% url 'inventory_request_create' %}?product={{ p.id }}" class="text-emerald-600 hover:underline">Request</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Recent Transactions -->
+  {% if recent_transactions %}
+  <section>
+    <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Recent Stock Activity</h2>
+    <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-gray-50 border-b">
+            <th class="p-3 text-left font-medium text-gray-700">Product</th>
+            <th class="p-3 text-left font-medium text-gray-700">Type</th>
+            <th class="p-3 text-left font-medium text-gray-700">Qty</th>
+            <th class="p-3 text-left font-medium text-gray-700">Recorded By</th>
+            <th class="p-3 text-left font-medium text-gray-700">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in recent_transactions %}
+          <tr class="border-b hover:bg-blue-50">
+            <td class="p-3 align-middle font-medium text-gray-900">
+              {% if tx.product %}<a href="{% url 'product_detail' tx.product.id %}?next={{ request.path }}" class="text-blue-600 hover:underline">{{ tx.product.name }}</a>{% else %}-{% endif %}
+            </td>
+            <td class="p-3 align-middle align-middle">
+              {% if tx.transaction_type == 'IN' %}
+              <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">↑ IN</span>
+              {% else %}
+              <span class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">↓ OUT</span>
+              {% endif %}
+            </td>
+            <td class="p-3 align-middle font-mono">{{ tx.quantity }}</td>
+            <td class="p-3 align-middle text-gray-600">{{ tx.created_by|default:"-" }}</td>
+            <td class="p-3 align-middle text-gray-400 text-xs">{{ tx.created_at|date:"M d, Y H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if total_products is None and ir_pending is None and pr_pending is None %}
+  <div class="text-center py-16 text-gray-400">
+    <p class="text-4xl mb-4">👋</p>
+    <p class="text-lg font-medium text-gray-600">Welcome to the Inventory Management System</p>
+    <p class="text-sm mt-1">Use the sidebar to navigate.</p>
+  </div>
+  {% endif %}
+
+</div>
 {% endblock %}

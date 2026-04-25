@@ -21,24 +21,24 @@
 
     {% for procurement_request in procurement_requests %}
     <tr class="border-b align-top hover:bg-blue-50">
-        <td class="p-2 font-semibold text-gray-700">PR-{{ procurement_request.id|stringformat:"05d" }}</td>
-        <td class="p-2">
+        <td class="p-2 align-middle font-semibold text-gray-700">PR-{{ procurement_request.id|stringformat:"05d" }}</td>
+        <td class="p-2 align-middle align-middle">
             {% if procurement_request.inventory_request %}
             #{{ procurement_request.inventory_request.id }}
             {% else %}
             -
             {% endif %}
         </td>
-        <td class="p-2">
+        <td class="p-2 align-middle align-middle">
             {% if procurement_request.product %}
-            {{ procurement_request.product.name }}
+            <a href="{% url 'product_detail' procurement_request.product.id %}?next={{ request.path }}" class="text-blue-600 hover:underline font-medium">{{ procurement_request.product.name }}</a>
             {% else %}
             {{ procurement_request.product_name }}
             {% endif %}
         </td>
-        <td class="p-2">{{ procurement_request.quantity }}</td>
-        <td class="p-2">{{ procurement_request.price|idr_currency }}</td>
-        <td class="p-2">
+        <td class="p-2 align-middle align-middle">{{ procurement_request.quantity }}</td>
+        <td class="p-2 align-middle align-middle">{{ procurement_request.price|idr_currency }}</td>
+        <td class="p-2 align-middle align-middle">
             <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium
                 {% if procurement_request.status == 'PENDING' %}bg-amber-100 text-amber-800
                 {% elif procurement_request.status == 'APPROVED' %}bg-emerald-100 text-emerald-800
@@ -52,8 +52,10 @@
             <p class="mt-2 text-sm text-red-700">Reason: {{ procurement_request.rejected_reason }}</p>
             {% endif %}
         </td>
-        <td class="p-2">{{ procurement_request.notes|default:"-" }}</td>
-        <td class="p-2">
+        <td class="p-2 align-middle align-middle">{{ procurement_request.notes|default:"-" }}</td>
+        <td class="p-2 align-middle align-middle">
+            <div class="space-y-2">
+            <a href="{% url 'procurement_request_detail' procurement_request.id %}" class="inline-block rounded bg-blue-600 px-3 py-2 text-white text-sm">Detail</a>
             {% if procurement_request.status == 'PENDING' %}
             <div class="space-y-3">
                 <form method="post" action="{% url 'procurement_request_decide' procurement_request.id %}">
@@ -92,6 +94,7 @@
             {% else %}
             <span class="text-sm text-gray-500">-</span>
             {% endif %}
+            </div>
         </td>
     </tr>
     {% empty %}

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% load currency %}
+
+{% block content %}
+<div class="max-w-4xl space-y-6">
+
+  <!-- Breadcrumb & back -->
+  <div class="flex items-center gap-2 text-sm text-gray-500">
+    <a href="{% url 'inventory_request_list' %}" class="hover:text-blue-600">Inventory Requests</a>
+    <span>/</span>
+    <span class="text-gray-900 font-medium">IR-{{ ir.id|stringformat:"05d" }}</span>
+  </div>
+
+  <!-- Header card -->
+  <div class="bg-white rounded-xl border shadow-sm p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <p class="text-xs font-mono text-gray-400 mb-1">IR-{{ ir.id|stringformat:"05d" }}</p>
+        <h1 class="text-xl font-bold text-gray-900">
+          {% if ir.product %}
+          <a href="{% url 'product_detail' ir.product.id %}?next={{ request.path }}" class="text-blue-600 hover:underline">{{ ir.product.name }}</a>
+          {% else %}{{ ir.product_name|default:"Unknown Product" }}{% endif %}
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">Requested by <span class="font-medium text-gray-700">{{ ir.created_by|default:"—" }}</span> · {{ ir.created_at|date:"M d, Y H:i" }}</p>
+      </div>
+      <span class="inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold
+        {% if ir.status == 'PENDING' %}bg-amber-100 text-amber-800
+        {% elif ir.status == 'APPROVED' %}bg-emerald-100 text-emerald-800
+        {% elif ir.status == 'FULFILLED' %}bg-blue-100 text-blue-800
+        {% elif ir.status == 'REJECTED' %}bg-red-100 text-red-800
+        {% else %}bg-gray-100 text-gray-800{% endif %}">
+        {{ ir.get_status_display }}
+      </span>
+    </div>
+
+    <div class="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-4 pt-5 border-t">
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wide">Quantity</p>
+        <p class="mt-1 font-semibold text-gray-900">{{ ir.quantity }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wide">Current Stock</p>
+        <p class="mt-1 font-semibold {% if ir.product %}{% if ir.product.stock < ir.quantity %}text-amber-600{% else %}text-gray-900{% endif %}{% else %}text-gray-400{% endif %}">
+          {% if ir.product %}{{ ir.product.stock }}{% else %}—{% endif %}
+        </p>
+      </div>
+      <div class="sm:col-span-2">
+        <p class="text-xs text-gray-400 uppercase tracking-wide">Reason</p>
+        <p class="mt-1 text-gray-700 italic">{{ ir.reason|default:"—" }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Two-column layout -->
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+    <!-- Timeline (left, 3/5) -->
+    <div class="lg:col-span-3 space-y-4">
+      <h2 class="text-base font-semibold text-gray-900">Request Timeline</h2>
+
+      {% if total_duration %}
+      <div class="flex items-center gap-2 text-sm bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">
+        <span class="text-blue-500">⏱</span>
+        <span class="text-blue-700">Total process duration: <strong>{{ total_duration|duration_human }}</strong></span>
+      </div>
+      {% endif %}
+
+      <ol class="relative border-l-2 border-gray-200 ml-3">
+        {% for event in timeline %}
+        {% if event.duration_since_prev %}
+        <li class="ml-6 py-2 list-none">
+          <span class="text-xs text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">⏱ {{ event.duration_since_prev|duration_human }}</span>
+        </li>
+        {% endif %}
+        <li class="ml-6">
+          <!-- Dot aligned with card top -->
+          <span class="absolute -left-[11px] mt-2.5 flex items-center justify-center w-5 h-5 rounded-full ring-4 ring-white
+            {% if event.color == 'blue' %}bg-blue-500
+            {% elif event.color == 'emerald' %}bg-emerald-500
+            {% elif event.color == 'red' %}bg-red-500
+            {% elif event.color == 'violet' %}bg-violet-500
+            {% elif event.color == 'amber' %}bg-amber-400
+            {% else %}bg-gray-400{% endif %}">
+          </span>
+
+          <!-- Card -->
+          <div class="bg-white rounded-lg border shadow-sm p-4">
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="font-semibold text-gray-900 text-sm">{{ event.label }}</h3>
+              {% if event.time %}
+              <time class="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">{{ event.time|date:"M d, Y H:i" }}</time>
+              {% endif %}
+            </div>
+            {% if event.actor %}
+            <p class="text-xs text-gray-500 mt-1">By <span class="font-medium text-gray-700">{{ event.actor }}</span></p>
+            {% endif %}
+            {% if event.note %}
+            <p class="mt-2 text-xs text-gray-600 italic border-l-2 border-gray-200 pl-2">
+              <span class="font-medium not-italic text-gray-400">{{ event.note_label }}: </span>{{ event.note }}
+            </p>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    <!-- Right panel (2/5) -->
+    <div class="lg:col-span-2 space-y-4">
+
+      <!-- Linked Procurements -->
+      <h2 class="text-base font-semibold text-gray-900">Linked Procurements</h2>
+      {% if linked_procurements %}
+        {% for pr in linked_procurements %}
+        <div onclick="window.location.href='{% url 'procurement_request_detail' pr.id %}'"
+           class="block bg-white rounded-xl border shadow-sm p-4 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="text-xs font-mono text-gray-400">PR-{{ pr.id|stringformat:"05d" }}</p>
+              <p class="font-semibold text-gray-900 text-sm mt-0.5">
+                {% if pr.product %}<a href="{% url 'product_detail' pr.product.id %}?next={{ request.path }}" class="text-blue-600 hover:underline">{{ pr.product.name }}</a>{% else %}{{ pr.product_name|default:"Unknown" }}{% endif %}
+              </p>
+              <p class="text-xs text-gray-500 mt-1">By {{ pr.created_by|default:"—" }} · {{ pr.created_at|date:"M d, Y" }}</p>
+            </div>
+            <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium flex-shrink-0
+              {% if pr.status == 'PENDING' %}bg-amber-100 text-amber-800
+              {% elif pr.status == 'APPROVED' %}bg-emerald-100 text-emerald-800
+              {% elif pr.status == 'FULFILLED' %}bg-blue-100 text-blue-800
+              {% elif pr.status == 'REJECTED' %}bg-red-100 text-red-800
+              {% elif pr.status == 'ORDERED' %}bg-orange-100 text-orange-800
+              {% else %}bg-gray-100 text-gray-800{% endif %}">
+              {{ pr.get_status_display }}
+            </span>
+          </div>
+          {% if pr.price %}
+          <p class="text-xs text-gray-500 mt-2">Price: <span class="font-medium text-gray-700">{{ pr.price|idr_currency }}</span></p>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="bg-gray-50 rounded-xl border border-dashed p-6 text-center text-sm text-gray-400">
+          No linked procurement requests
+        </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
