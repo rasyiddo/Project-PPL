@@ -4,6 +4,13 @@
 
 <h1 class="text-2xl font-bold mb-4">Inventory Request Form</h1>
 
+{% if rejected_request %}
+<div class="mb-4 rounded border border-red-200 bg-red-50 p-4">
+    <p class="font-semibold text-red-700">Re-submitting based on rejected request #{{ rejected_request.id }}</p>
+    <p class="mt-1 text-sm text-red-600"><span class="font-medium">Rejection reason:</span> {{ rejected_request.rejected_reason }}</p>
+</div>
+{% endif %}
+
 <form method="post" class="bg-white p-4 rounded shadow space-y-4">
     {% csrf_token %}
 

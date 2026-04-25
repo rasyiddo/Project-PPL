@@ -9,7 +9,7 @@
 
 <table class="w-full bg-white shadow rounded">
     <tr class="border-b">
-        <th class="p-2 text-left">ID</th>
+        <th class="p-2 text-left" style="width: 100px">ID</th>
         <th class="p-2 text-left">Inventory Request</th>
         <th class="p-2 text-left">Product</th>
         <th class="p-2 text-left">Quantity</th>
@@ -20,8 +20,8 @@
     </tr>
 
     {% for procurement_request in procurement_requests %}
-    <tr class="border-b align-top">
-        <td class="p-2">#{{ procurement_request.id }}</td>
+    <tr class="border-b align-top hover:bg-blue-50">
+        <td class="p-2 font-semibold text-gray-700">PR-{{ procurement_request.id|stringformat:"05d" }}</td>
         <td class="p-2">
             {% if procurement_request.inventory_request %}
             #{{ procurement_request.inventory_request.id }}

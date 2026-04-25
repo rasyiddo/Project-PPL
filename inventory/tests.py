@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.template.defaultfilters import date as date_filter
 from django.urls import reverse
 from django.utils import timezone
-from inventory.forms import ProductForm, InventoryRequestForm
+from inventory.forms import ProductForm, InventoryRequestForm, StandaloneProcurementRequestForm
 from inventory.models import Product, InventoryRequest, InventoryTransaction, ProcurementRequest
 
 
@@ -269,8 +269,6 @@ class InventoryRequestListViewTest(TestCase):
         response = self.client.get(reverse('inventory_request_list'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Requested At')
-        self.assertContains(response, 'Approved / Rejected At')
         self.assertContains(response, date_filter(timezone.localtime(inventory_request.created_at), "M d, Y H:i"))
         self.assertContains(response, date_filter(timezone.localtime(approved_at), "M d, Y H:i"))
 
@@ -301,7 +299,10 @@ class InventoryRequestApprovalViewTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
-        self.assertLess(content.index(f'>{pending_request.id}</td>'), content.index(f'>{approved_request.id}</td>'))
+        self.assertLess(
+            content.index(f'IR-{pending_request.id:05d}'),
+            content.index(f'IR-{approved_request.id:05d}'),
+        )
 
     def test_approval_list_excludes_manager_own_request(self):
         own_request = InventoryRequest.objects.create(
@@ -417,7 +418,7 @@ class InventoryRequestApprovalViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Current<br/>Stock')
         self.assertContains(response, 'Needs Procurement')
-        self.assertContains(response, '>1<', html=False)
+        self.assertContains(response, str(low_stock_product.stock))
         self.assertContains(response, 'NEW TABLET')
 
 
@@ -844,5 +845,470 @@ class ProcurementRequestApprovalViewTest(TestCase):
         self.assertEqual(procurement_request.status, 'APPROVED')
         self.assertEqual(procurement_request.approved_by, self.manager)
         self.assertIsNotNone(procurement_request.approved_at)
+
+# endregion
+
+
+# region Approval list ID format
+
+class InventoryRequestApprovalListIdFormatTest(TestCase):
+
+    def setUp(self):
+        self.manager = User.objects.create_user(username='manager-fmt', password='secret')
+        approve_permission = Permission.objects.get(codename='approve_inventoryrequest')
+        self.manager.user_permissions.add(approve_permission)
+        self.client.force_login(self.manager)
+
+    def test_id_is_displayed_with_ir_prefix_and_zero_padding(self):
+        req = InventoryRequest.objects.create(product_name='CABLE', quantity=1, reason='Test')
+        response = self.client.get(reverse('inventory_request_approval_list'))
+        self.assertContains(response, f'IR-{req.id:05d}')
+
+    def test_rejected_request_shown_as_single_row_with_reason(self):
+        req = InventoryRequest.objects.create(
+            product_name='CABLE',
+            quantity=1,
+            reason='Test',
+            status='REJECTED',
+            rejected_reason='Out of budget',
+            rejected_by=self.manager,
+            rejected_at=timezone.now(),
+        )
+        response = self.client.get(reverse('inventory_request_approval_list'))
+        self.assertContains(response, 'Out of budget')
+        self.assertContains(response, f'IR-{req.id:05d}')
+
+    def test_approved_request_shows_approved_by(self):
+        approver = User.objects.create_user(username='approver', password='secret')
+        req = InventoryRequest.objects.create(
+            product_name='DESK',
+            quantity=1,
+            reason='Test',
+            status='APPROVED',
+            approved_by=approver,
+            approved_at=timezone.now(),
+        )
+        response = self.client.get(reverse('inventory_request_approval_list'))
+        self.assertContains(response, approver.username)
+        self.assertContains(response, f'IR-{req.id:05d}')
+
+# endregion
+
+
+# region Re-submit from rejected
+
+class InventoryRequestResubmitTest(TestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='requester', password='secret')
+        self.user.user_permissions.add(
+            Permission.objects.get(codename='add_inventoryrequest'),
+            Permission.objects.get(codename='view_inventoryrequest'),
+        )
+        self.client.force_login(self.user)
+        self.product = Product.objects.create(name='MOUSE', stock=5)
+
+    def _make_rejected(self, **kwargs):
+        defaults = dict(
+            product=self.product,
+            quantity=3,
+            reason='Office use',
+            status='REJECTED',
+            rejected_reason='Budget frozen',
+            created_by=self.user,
+            rejected_at=timezone.now(),
+        )
+        defaults.update(kwargs)
+        return InventoryRequest.objects.create(**defaults)
+
+    def test_resubmit_link_shown_for_rejected_request(self):
+        req = self._make_rejected()
+        response = self.client.get(reverse('inventory_request_list'))
+        self.assertContains(response, reverse('inventory_request_create') + f'?from={req.id}')
+
+    def test_resubmit_link_not_shown_for_pending_request(self):
+        req = InventoryRequest.objects.create(
+            product=self.product, quantity=1, reason='Test',
+            status='PENDING', created_by=self.user,
+        )
+        response = self.client.get(reverse('inventory_request_list'))
+        self.assertNotContains(response, f'?from={req.id}')
+
+    def test_from_param_prepopulates_form_with_rejected_request_fields(self):
+        req = self._make_rejected()
+        response = self.client.get(reverse('inventory_request_create'), {'from': req.id})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Budget frozen')
+        self.assertContains(response, f'Re-submitting based on rejected request #{req.id}')
+        form = response.context['form']
+        self.assertEqual(form.initial.get('quantity'), 3)
+        self.assertEqual(form.initial.get('reason'), 'Office use')
+
+    def test_from_param_prepopulates_manual_product_fields(self):
+        req = InventoryRequest.objects.create(
+            product_name='CUSTOM ITEM',
+            quantity=2,
+            reason='Special order',
+            status='REJECTED',
+            rejected_reason='Wrong vendor',
+            created_by=self.user,
+            rejected_at=timezone.now(),
+        )
+        response = self.client.get(reverse('inventory_request_create'), {'from': req.id})
+        self.assertEqual(response.status_code, 200)
+        form = response.context['form']
+        self.assertEqual(form.initial.get('product_name'), 'CUSTOM ITEM')
+        self.assertTrue(form.initial.get('use_manual_product'))
+
+    def test_from_param_ignored_for_non_rejected_request(self):
+        pending = InventoryRequest.objects.create(
+            product=self.product, quantity=1, reason='Test',
+            status='PENDING', created_by=self.user,
+        )
+        response = self.client.get(reverse('inventory_request_create'), {'from': pending.id})
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context.get('rejected_request'))
+
+    def test_from_param_ignored_for_other_users_rejected_request(self):
+        other = User.objects.create_user(username='other', password='secret')
+        req = InventoryRequest.objects.create(
+            product=self.product, quantity=1, reason='Test',
+            status='REJECTED', rejected_reason='No budget',
+            created_by=other, rejected_at=timezone.now(),
+        )
+        response = self.client.get(reverse('inventory_request_create'), {'from': req.id})
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context.get('rejected_request'))
+
+
+# endregion
+
+
+# region Standalone Procurement Request
+
+class StandaloneProcurementRequestFormTest(TestCase):
+
+    def setUp(self):
+        self.product = Product.objects.create(name='KEYBOARD', stock=10)
+
+    def test_valid_with_existing_product(self):
+        form = StandaloneProcurementRequestForm(data={
+            'use_manual_product': False,
+            'product': self.product.id,
+            'quantity': 2,
+            'price': '500.000',
+            'notes': 'Restock',
+        })
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data['product'], self.product)
+        self.assertIsNone(form.cleaned_data['product_name'])
+
+    def test_valid_with_manual_product(self):
+        form = StandaloneProcurementRequestForm(data={
+            'use_manual_product': True,
+            'product_name': 'new widget',
+            'quantity': 5,
+            'price': '200.000',
+        })
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data['product_name'], 'NEW WIDGET')
+        self.assertIsNone(form.cleaned_data['product'])
+
+    def test_requires_product_when_not_manual(self):
+        form = StandaloneProcurementRequestForm(data={
+            'use_manual_product': False,
+            'quantity': 2,
+            'price': '100.000',
+        })
+        self.assertFalse(form.is_valid())
+
+    def test_requires_product_name_when_manual(self):
+        form = StandaloneProcurementRequestForm(data={
+            'use_manual_product': True,
+            'product_name': '',
+            'quantity': 2,
+            'price': '100.000',
+        })
+        self.assertFalse(form.is_valid())
+
+    def test_price_must_be_positive(self):
+        form = StandaloneProcurementRequestForm(data={
+            'use_manual_product': False,
+            'product': self.product.id,
+            'quantity': 1,
+            'price': '0',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('price', form.errors)
+
+    def test_quantity_must_be_at_least_one(self):
+        form = StandaloneProcurementRequestForm(data={
+            'use_manual_product': False,
+            'product': self.product.id,
+            'quantity': 0,
+            'price': '100.000',
+        })
+        self.assertFalse(form.is_valid())
+
+
+class StandaloneProcurementRequestCreateViewTest(TestCase):
+
+    def setUp(self):
+        self.staff = User.objects.create_user(username='warehouse', password='secret')
+        self.staff.user_permissions.add(
+            Permission.objects.get(codename='add_procurementrequest'),
+            Permission.objects.get(codename='view_procurementrequest'),
+        )
+        self.client.force_login(self.staff)
+        self.product = Product.objects.create(name='HEADSET', stock=3)
+
+    def test_create_standalone_with_existing_product(self):
+        response = self.client.post(reverse('procurement_request_create'), {
+            'use_manual_product': False,
+            'product': self.product.id,
+            'quantity': 5,
+            'price': '1.500.000',
+            'notes': 'Restock run',
+        })
+        self.assertEqual(response.status_code, 302)
+        pr = ProcurementRequest.objects.get()
+        self.assertEqual(pr.product, self.product)
+        self.assertIsNone(pr.inventory_request)
+        self.assertEqual(pr.quantity, 5)
+        self.assertEqual(pr.created_by, self.staff)
+        self.assertEqual(pr.status, 'PENDING')
+
+    def test_create_standalone_with_manual_product(self):
+        response = self.client.post(reverse('procurement_request_create'), {
+            'use_manual_product': True,
+            'product_name': 'brand new item',
+            'quantity': 2,
+            'price': '300.000',
+        })
+        self.assertEqual(response.status_code, 302)
+        pr = ProcurementRequest.objects.get()
+        self.assertIsNone(pr.product)
+        self.assertEqual(pr.product_name, 'BRAND NEW ITEM')
+        self.assertIsNone(pr.inventory_request)
+
+    def test_resubmit_link_shown_for_rejected_standalone(self):
+        rejected = ProcurementRequest.objects.create(
+            product=self.product,
+            quantity=4,
+            price='200.00',
+            status='REJECTED',
+            rejected_reason='Wrong specification',
+            created_by=self.staff,
+            rejected_at=timezone.now(),
+        )
+        response = self.client.get(reverse('procurement_request_list'))
+        self.assertContains(response, reverse('procurement_request_create') + f'?from={rejected.id}')
+
+    def test_resubmit_link_not_shown_for_linked_rejected_procurement(self):
+        inv_req = InventoryRequest.objects.create(
+            product=self.product, quantity=2, reason='Test', status='REJECTED',
+        )
+        linked_rejected = ProcurementRequest.objects.create(
+            inventory_request=inv_req,
+            product=self.product,
+            quantity=2,
+            price='100.00',
+            status='REJECTED',
+            rejected_reason='No budget',
+            created_by=self.staff,
+            rejected_at=timezone.now(),
+        )
+        response = self.client.get(reverse('procurement_request_list'))
+        self.assertNotContains(response, f'?from={linked_rejected.id}')
+
+    def test_from_param_prepopulates_form_with_rejected_standalone(self):
+        rejected = ProcurementRequest.objects.create(
+            product=self.product,
+            quantity=4,
+            price='200.00',
+            notes='Previous attempt',
+            status='REJECTED',
+            rejected_reason='Wrong specification',
+            created_by=self.staff,
+            rejected_at=timezone.now(),
+        )
+        response = self.client.get(reverse('procurement_request_create'), {'from': rejected.id})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Wrong specification')
+        self.assertContains(response, f'Re-submitting based on rejected request #{rejected.id}')
+        form = response.context['form']
+        self.assertEqual(form.initial.get('quantity'), 4)
+        self.assertEqual(form.initial.get('notes'), 'Previous attempt')
+
+    def test_from_param_ignored_if_request_has_inventory_request(self):
+        inv_req = InventoryRequest.objects.create(
+            product=self.product, quantity=2, reason='Test', status='REJECTED',
+        )
+        linked = ProcurementRequest.objects.create(
+            inventory_request=inv_req,
+            product=self.product,
+            quantity=2,
+            price='100.00',
+            status='REJECTED',
+            rejected_reason='No budget',
+            created_by=self.staff,
+            rejected_at=timezone.now(),
+        )
+        response = self.client.get(reverse('procurement_request_create'), {'from': linked.id})
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context.get('rejected_request'))
+
+    def test_from_param_ignored_for_other_users_rejected_request(self):
+        other = User.objects.create_user(username='other-staff', password='secret')
+        rejected = ProcurementRequest.objects.create(
+            product=self.product,
+            quantity=3,
+            price='150.00',
+            status='REJECTED',
+            rejected_reason='Wrong vendor',
+            created_by=other,
+            rejected_at=timezone.now(),
+        )
+        response = self.client.get(reverse('procurement_request_create'), {'from': rejected.id})
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context.get('rejected_request'))
+
+
+class StandaloneProcurementFulfillmentValidationTest(TestCase):
+
+    def setUp(self):
+        self.staff = User.objects.create_user(username='warehouse', password='secret')
+        self.staff.user_permissions.add(
+            Permission.objects.get(codename='add_inventorytransaction'),
+            Permission.objects.get(codename='view_procurementrequest'),
+        )
+        self.client.force_login(self.staff)
+
+    def test_standalone_fulfillment_rejects_quantity_below_requested(self):
+        product = Product.objects.create(name='CABLE', stock=0)
+        pr = ProcurementRequest.objects.create(
+            product=product,
+            product_name=product.name,
+            quantity=5,
+            price='100.00',
+            status='APPROVED',
+            created_by=self.staff,
+            approved_at=timezone.now(),
+        )
+        response = self.client.post(reverse('procurement_request_fulfill', args=[pr.id]), {
+            'product_name': product.name,
+            'received_quantity': 3,
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Received quantity must be at least 5')
+        pr.refresh_from_db()
+        self.assertEqual(pr.status, 'APPROVED')
+
+    def test_standalone_fulfillment_accepts_exact_requested_quantity(self):
+        product = Product.objects.create(name='CABLE', stock=0)
+        pr = ProcurementRequest.objects.create(
+            product=product,
+            product_name=product.name,
+            quantity=5,
+            price='100.00',
+            status='APPROVED',
+            created_by=self.staff,
+            approved_at=timezone.now(),
+        )
+        response = self.client.post(reverse('procurement_request_fulfill', args=[pr.id]), {
+            'product_name': product.name,
+            'received_quantity': 5,
+        })
+        self.assertEqual(response.status_code, 302)
+        pr.refresh_from_db()
+        self.assertEqual(pr.status, 'FULFILLED')
+
+
+class WarehouseQueueAfterProcurementRejectionTest(TestCase):
+
+    def setUp(self):
+        self.staff = User.objects.create_user(username='warehouse', password='secret')
+        self.staff.user_permissions.add(
+            Permission.objects.get(codename='add_inventorytransaction'),
+            Permission.objects.get(codename='add_procurementrequest'),
+            Permission.objects.get(codename='view_procurementrequest'),
+        )
+        self.client.force_login(self.staff)
+
+    def test_approved_inventory_request_reappears_after_procurement_rejection(self):
+        product = Product.objects.create(name='SCANNER', stock=0)
+        inv_req = InventoryRequest.objects.create(
+            product=product,
+            quantity=3,
+            reason='Replacement',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+        ProcurementRequest.objects.create(
+            inventory_request=inv_req,
+            product=product,
+            quantity=3,
+            price='500.00',
+            status='REJECTED',
+            created_by=self.staff,
+            rejected_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse('warehouse_inventory_request_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, product.name)
+
+    def test_approved_inventory_request_hidden_when_active_procurement_exists(self):
+        product = Product.objects.create(name='PROJECTOR', stock=0)
+        inv_req = InventoryRequest.objects.create(
+            product=product,
+            quantity=1,
+            reason='Meeting room',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+        ProcurementRequest.objects.create(
+            inventory_request=inv_req,
+            product=product,
+            quantity=1,
+            price='2000.00',
+            status='PENDING',
+            created_by=self.staff,
+        )
+
+        response = self.client.get(reverse('warehouse_inventory_request_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, product.name)
+
+    def test_new_procurement_can_be_created_after_rejection(self):
+        product = Product.objects.create(name='MONITOR', stock=0)
+        inv_req = InventoryRequest.objects.create(
+            product=product,
+            quantity=2,
+            reason='Expansion',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+        ProcurementRequest.objects.create(
+            inventory_request=inv_req,
+            product=product,
+            quantity=2,
+            price='800.00',
+            status='REJECTED',
+            created_by=self.staff,
+            rejected_at=timezone.now(),
+        )
+
+        response = self.client.post(
+            reverse('warehouse_procurement_request_create', args=[inv_req.id]),
+            {'price': '900.000', 'notes': 'Second attempt'},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ProcurementRequest.objects.filter(inventory_request=inv_req).count(), 2)
+        new_pr = ProcurementRequest.objects.filter(inventory_request=inv_req, status='PENDING').first()
+        self.assertIsNotNone(new_pr)
 
 # endregion

@@ -114,20 +114,12 @@
         </div>
         {% endif %}
 
-        <!-- LOGOUT -->
-        <form method="post" action="{% url 'logout' %}" class="mt-6">
-            {% csrf_token %}
-            <button class="bg-red-500 px-3 py-1 rounded">
-                Logout
-            </button>
-        </form>
-
     </div>
 
     <!-- MAIN CONTENT -->
     <div class="flex-1 ml-64">
         <div class="fixed top-0 right-0 left-64 z-10 border-b bg-white/95 backdrop-blur">
-            <div class="flex h-14 items-center justify-end px-6">
+            <div class="flex h-14 items-center justify-end gap-3 px-6">
                 <div class="rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700">
                     Signed in as <span class="font-semibold text-gray-900">{{ user.username }}</span>
                     {% with role=user.groups.first %}
@@ -140,6 +132,12 @@
                     {% endif %}
                     {% endwith %}
                 </div>
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button class="rounded-full bg-red-100 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-200">
+                        Logout
+                    </button>
+                </form>
             </div>
         </div>
 
