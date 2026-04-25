@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold">Inventory Requests</h1>
+
+    {% if perms.inventory.add_inventoryrequest %}
+    <a href="{% url 'inventory_request_create' %}" class="bg-blue-600 text-white px-4 py-2 rounded">
+        New Request
+    </a>
+    {% endif %}
+</div>
+
+<table class="w-full bg-white shadow rounded">
+    <tr class="border-b">
+        <th class="p-2 text-left">ID</th>
+        <th class="p-2 text-left">Product</th>
+        <th class="p-2 text-left">Requested At</th>
+        <th class="p-2 text-left">Status</th>
+        <th class="p-2 text-left">Approved / Rejected At</th>
+    </tr>
+
+    {% for inventory_request in inventory_requests %}
+    <tr class="border-b">
+        <td class="p-2">{{ inventory_request.id }}</td>
+        <td class="p-2">
+            {% if inventory_request.product %}
+            {{ inventory_request.product.name }}
+            {% else %}
+            {{ inventory_request.product_name }}
+            {% endif %}
+        </td>
+        <td class="p-2">{{ inventory_request.created_at|date:"M d, Y H:i" }}</td>
+        <td class="p-2">
+            <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium
+                {% if inventory_request.status == 'PENDING' %}bg-amber-100 text-amber-800
+                {% elif inventory_request.status == 'APPROVED' %}bg-emerald-100 text-emerald-800
+                {% elif inventory_request.status == 'REJECTED' %}bg-red-100 text-red-800
+                {% elif inventory_request.status == 'FULFILLED' %}bg-blue-100 text-blue-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ inventory_request.get_status_display }}
+            </span>
+        </td>
+        <td class="p-2">
+            {% if inventory_request.status == 'APPROVED' and inventory_request.approved_at %}
+            {{ inventory_request.approved_at|date:"M d, Y H:i" }}
+            {% elif inventory_request.status == 'REJECTED' and inventory_request.rejected_at %}
+            {{ inventory_request.rejected_at|date:"M d, Y H:i" }}
+            {% else %}
+            -
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}

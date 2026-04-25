@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1 class="text-2xl font-bold mb-4">Inventory Request Form</h1>
+
+<form method="post" class="bg-white p-4 rounded shadow space-y-4">
+    {% csrf_token %}
+
+    {% load widget_tweaks %}
+
+    {% if form.non_field_errors %}
+    <span class="text-red-500"> {{ form.non_field_errors  }}</span>
+    {% endif %}
+
+    <div>
+        {{ form.use_manual_product }} {{ form.use_manual_product.label }}
+    </div>
+
+    <div id="product">
+        {{ form.product.label_tag }}
+        <select id="id_product" name="product" class="w-full border rounded-lg px-3 py-2">
+            <option value="">Select a Product!</option>
+            {% for product in products %}
+            <option value="{{ product.id }}" data-stock="{{ product.stock }}" {% if form.product.value|stringformat:"s" == product.id|stringformat:"s" %}selected{% endif %}> {{ product.name }} (Stock: {{ product.stock }})</option>
+            {% endfor %}
+        </select>
+        {% if form.product.errors %}
+        <span class="text-red-500"> {{ form.product.errors  }}</span>
+        {% endif %}
+    </div>
+
+    <div id="product_name" class="hidden">
+        {{ form.product_name.label_tag }}
+        {{ form.product_name }}
+        <p class="text-xs text-yellow-600 mt-1">
+            ⚠ Using manual entry will require procurement process before fulfillment.
+        </p>
+        {% if form.product_name.errors %}
+        <span class="text-red-500"> {{ form.product_name.errors  }}</span>
+        {% endif %}
+    </div>
+
+    <div>
+        {{ form.quantity.label_tag }}
+        {{ form.quantity }}
+        <div id="stock-warning" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 p-2 rounded mt-2">
+        </div>
+        {% if form.quantity.errors %}
+        <span class="text-red-500"> {{ form.quantity.errors  }}</span>
+        {% endif %}
+    </div>
+
+    <div>
+        {{ form.reason.label_tag }}
+        {{ form.reason }}
+        {% if form.reason.errors %}
+        <span class="text-red-500"> {{ form.reason.errors  }}</span>
+        {% endif %}
+    </div>
+
+    <button class="bg-blue-600 text-white px-4 py-2 rounded">
+        Submit Request
+    </button>
+</form>
+
+<script>
+    $(document).ready(function () {
+        // noinspection JSJQueryEfficiency
+        $("#id_product")
+            .select2({
+                placeholder: "Search product...",
+                width: "100%"
+            })
+            .on("change", function () {
+                syncSelectedStock();
+                checkQuantityWarning();
+            })
+            .on("input", function () {
+                checkQuantityWarning();
+            });
+
+        // product toggle
+        const checkbox = document.getElementById("id_use_manual_product");
+
+        function toggleFields() {
+            if (checkbox.checked) {
+                $("#id_product").val(null).trigger("change").prop("disabled", true);
+                $("#id_product_name").prop("disabled", false);
+                $("#product_name").addClass("block").removeClass("hidden");
+                $("#product").addClass("hidden").removeClass("block");
+            } else {
+                $("#id_product").prop("disabled", false);
+                $("#id_product_name").val("").prop("disabled", true);
+                $("#product").addClass("block").removeClass("hidden");
+                $("#product_name").addClass("hidden").removeClass("block");
+            }
+        }
+
+        checkbox.addEventListener("change", toggleFields);
+        toggleFields(); // initial state
+
+        // quantity warning
+        const DEFAULT_STOCK = 100000000000;
+        let selectedStock = DEFAULT_STOCK;
+
+        syncSelectedStock();
+        checkQuantityWarning();
+
+        function syncSelectedStock() {
+            const selectedOption = $("#id_product").find(":selected");
+            selectedStock = selectedOption.data("stock") == null ? DEFAULT_STOCK : parseInt(selectedOption.data("stock"));
+        }
+
+        function checkQuantityWarning() {
+            const qty = parseInt($("#id_quantity").val()) || 0;
+            const warningBox = $("#stock-warning");
+            if (selectedStock === 0) {
+                warningBox.text("⚠ No stock available - procurement required");
+                warningBox.show();
+                return;
+            }
+            if (qty > selectedStock) {
+                warningBox.text(
+                    `⚠ Requested quantity exceeds current stock (${selectedStock}). This will require procurement and longer fulfillment time.`
+                );
+                warningBox.show();
+            } else {
+                warningBox.hide();
+            }
+        }
+    });
+</script>
+
+{% endblock %}
