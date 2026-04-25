@@ -12,6 +12,7 @@ def get_inventory_request_approval_queryset(user):
     return (
         InventoryRequest.objects
         .exclude(created_by=user)
+        .select_related('product', 'created_by', 'approved_by', 'rejected_by')
         .annotate(
             approval_priority=Case(
                 When(status='PENDING', then=Value(0)),
@@ -103,9 +104,12 @@ def product_update(request, pk):
 @login_required
 @permission_required('inventory.view_inventoryrequest', raise_exception=True)
 def inventory_request_list(request):
-    inventory_requests = InventoryRequest.objects.filter(created_by=request.user).order_by('-created_at')
+    inventory_requests = InventoryRequest.objects.filter(
+        created_by=request.user
+    ).select_related('product', 'approved_by', 'rejected_by').order_by('-created_at')
     return render(request, 'inventory/inventory_request_list.html', {
-        'inventory_requests': inventory_requests
+        'inventory_requests': inventory_requests,
+        'mode': 'owner',
     })
 
 
@@ -113,8 +117,9 @@ def inventory_request_list(request):
 @permission_required('inventory.approve_inventoryrequest', raise_exception=True)
 def inventory_request_approval_list(request):
     inventory_requests = get_inventory_request_approval_queryset(request.user)
-    return render(request, 'inventory/inventory_request_approval_list.html', {
-        'inventory_requests': inventory_requests
+    return render(request, 'inventory/inventory_request_list.html', {
+        'inventory_requests': inventory_requests,
+        'mode': 'approver',
     })
 
 
@@ -144,9 +149,10 @@ def inventory_request_decide(request, pk):
     elif decision == 'reject':
         rejected_reason = (request.POST.get('rejected_reason') or '').strip()
         if not rejected_reason:
-            return render(request, 'inventory/inventory_request_approval_list.html', {
+            return render(request, 'inventory/inventory_request_list.html', {
                 'inventory_requests': get_inventory_request_approval_queryset(request.user),
                 'rejection_error_for_id': inventory_request.id,
+                'mode': 'approver',
             })
 
         inventory_request.status = 'REJECTED'
@@ -185,6 +191,8 @@ def warehouse_inventory_transaction_list(request):
 @login_required
 @permission_required('inventory.add_procurementrequest', raise_exception=True)
 def procurement_request_create(request):
+    rejected_request = None
+
     if request.method == 'POST':
         form = StandaloneProcurementRequestForm(request.POST)
         if form.is_valid():
@@ -193,11 +201,30 @@ def procurement_request_create(request):
             procurement_request.save()
             return redirect('procurement_request_list')
     else:
-        form = StandaloneProcurementRequestForm()
+        initial = {}
+        from_id = request.GET.get('from')
+        if from_id:
+            try:
+                rejected_request = ProcurementRequest.objects.get(
+                    pk=from_id,
+                    created_by=request.user,
+                    status='REJECTED',
+                    inventory_request__isnull=True,
+                )
+                initial['use_manual_product'] = bool(rejected_request.product_name and not rejected_request.product)
+                initial['product'] = rejected_request.product
+                initial['product_name'] = rejected_request.product_name
+                initial['quantity'] = rejected_request.quantity
+                initial['price'] = str(rejected_request.price) if rejected_request.price else ''
+                initial['notes'] = rejected_request.notes
+            except ProcurementRequest.DoesNotExist:
+                pass
+        form = StandaloneProcurementRequestForm(initial=initial)
 
     return render(request, 'inventory/procurement_request_create_form.html', {
         'form': form,
         'products': Product.objects.all(),
+        'rejected_request': rejected_request,
     })
 
 
@@ -428,6 +455,8 @@ def warehouse_inventory_request_fulfill(request, pk):
 @login_required
 @permission_required('inventory.add_inventoryrequest', raise_exception=True)
 def inventory_request_create(request):
+    rejected_request = None
+
     if request.method == 'POST':
         form = InventoryRequestForm(request.POST)
         if form.is_valid():
@@ -437,12 +466,29 @@ def inventory_request_create(request):
             return redirect('inventory_request_list')
     else:
         initial = {}
-        product_id = request.GET.get('product')
-        if product_id and Product.objects.filter(pk=product_id).exists():
-            initial['product'] = product_id
+        from_id = request.GET.get('from')
+        if from_id:
+            try:
+                rejected_request = InventoryRequest.objects.get(
+                    pk=from_id,
+                    created_by=request.user,
+                    status='REJECTED',
+                )
+                initial['use_manual_product'] = bool(rejected_request.product_name)
+                initial['product'] = rejected_request.product
+                initial['product_name'] = rejected_request.product_name
+                initial['quantity'] = rejected_request.quantity
+                initial['reason'] = rejected_request.reason
+            except InventoryRequest.DoesNotExist:
+                pass
+        else:
+            product_id = request.GET.get('product')
+            if product_id and Product.objects.filter(pk=product_id).exists():
+                initial['product'] = product_id
         form = InventoryRequestForm(initial=initial)
 
     return render(request, 'inventory/inventory_request_form.html', {
         'form': form,
-        'products': Product.objects.all()
+        'products': Product.objects.all(),
+        'rejected_request': rejected_request,
     })
