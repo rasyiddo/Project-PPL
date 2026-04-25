@@ -24,7 +24,7 @@
         {{ form.use_manual_product }} {{ form.use_manual_product.label }}
     </div>
 
-    <div id="product">
+    <div id="product" class="hidden">
         {{ form.product.label_tag }}
         <select id="id_product" name="product" class="w-full border rounded-lg px-3 py-2">
             <option value="">Select a Product!</option>
@@ -90,7 +90,13 @@
         // product toggle
         const checkbox = document.getElementById("id_use_manual_product");
 
+        // Ensure manual mode if server rendered a manual product_name and no product selected
+        {% if form.product_name.value and not form.product.value %}
+        checkbox.checked = true;
+        {% endif %}
+
         function toggleFields() {
+            console.log(checkbox.checked)
             if (checkbox.checked) {
                 $("#id_product").val(null).trigger("change").prop("disabled", true);
                 $("#id_product_name").prop("disabled", false);
@@ -105,14 +111,10 @@
         }
 
         checkbox.addEventListener("change", toggleFields);
-        toggleFields(); // initial state
 
-        // quantity warning
+        // quantity warning — declare before toggleFields() so change events don't hit TDZ
         const DEFAULT_STOCK = 100000000000;
         let selectedStock = DEFAULT_STOCK;
-
-        syncSelectedStock();
-        checkQuantityWarning();
 
         function syncSelectedStock() {
             const selectedOption = $("#id_product").find(":selected");
@@ -136,6 +138,10 @@
                 warningBox.hide();
             }
         }
+
+        toggleFields();
+        syncSelectedStock();
+        checkQuantityWarning();
     });
 </script>
 

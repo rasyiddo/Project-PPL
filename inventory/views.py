@@ -802,9 +802,19 @@ def inventory_request_create(request):
                     created_by=request.user,
                     status='REJECTED',
                 )
-                initial['use_manual_product'] = bool(rejected_request.product_name)
-                initial['product'] = rejected_request.product
-                initial['product_name'] = rejected_request.product_name
+                if rejected_request.product_name:
+                    # If the manually-entered product has since been created, use dropdown
+                    existing = Product.objects.filter(name__iexact=rejected_request.product_name).first()
+                    if existing:
+                        initial['use_manual_product'] = False
+                        initial['product'] = existing
+                        initial['product_name'] = None
+                    else:
+                        initial['use_manual_product'] = True
+                        initial['product_name'] = rejected_request.product_name
+                else:
+                    initial['use_manual_product'] = False
+                    initial['product'] = rejected_request.product
                 initial['quantity'] = rejected_request.quantity
                 initial['reason'] = rejected_request.reason
             except InventoryRequest.DoesNotExist:
