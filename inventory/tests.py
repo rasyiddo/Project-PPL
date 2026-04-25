@@ -77,9 +77,11 @@ class ProductListInventoryRequestActionTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse('inventory_request_create') + f'?product={self.product.id}')
-#endregion
 
-#region Inventory Request
+
+# endregion
+
+# region Inventory Request
 # noinspection PyMethodMayBeStatic
 class InventoryRequestModelTest(TestCase):
 
@@ -272,4 +274,127 @@ class InventoryRequestListViewTest(TestCase):
         self.assertContains(response, date_filter(timezone.localtime(inventory_request.created_at), "M d, Y H:i"))
         self.assertContains(response, date_filter(timezone.localtime(approved_at), "M d, Y H:i"))
 
-#endregion
+
+class InventoryRequestApprovalViewTest(TestCase):
+
+    def setUp(self):
+        self.manager = User.objects.create_user(username='manager', password='secret')
+        approve_permission = Permission.objects.get(codename='approve_inventoryrequest')
+        self.manager.user_permissions.add(approve_permission)
+        self.client.force_login(self.manager)
+
+    def test_approval_list_sorts_pending_before_approved(self):
+        approved_request = InventoryRequest.objects.create(
+            product_name='PRINTER',
+            quantity=1,
+            reason='Replacement',
+            status='APPROVED',
+        )
+        pending_request = InventoryRequest.objects.create(
+            product_name='PAPER',
+            quantity=3,
+            reason='Office use',
+            status='PENDING',
+        )
+
+        response = self.client.get(reverse('inventory_request_approval_list'))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertLess(content.index(f'>{pending_request.id}</td>'), content.index(f'>{approved_request.id}</td>'))
+
+    def test_approval_list_excludes_manager_own_request(self):
+        own_request = InventoryRequest.objects.create(
+            product_name='HEADSET',
+            quantity=1,
+            reason='Need for meeting room',
+            status='PENDING',
+            created_by=self.manager,
+        )
+        visible_request = InventoryRequest.objects.create(
+            product_name='DOCK',
+            quantity=1,
+            reason='Replacement',
+            status='PENDING',
+        )
+
+        response = self.client.get(reverse('inventory_request_approval_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, visible_request.product_name)
+        self.assertNotContains(response, own_request.product_name)
+
+    def test_approve_action_updates_request(self):
+        inventory_request = InventoryRequest.objects.create(
+            product_name='INK',
+            quantity=2,
+            reason='Low stock',
+            status='PENDING',
+        )
+
+        response = self.client.post(reverse('inventory_request_decide', args=[inventory_request.id]), {
+            'decision': 'approve',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        inventory_request.refresh_from_db()
+        self.assertEqual(inventory_request.status, 'APPROVED')
+        self.assertEqual(inventory_request.approved_by, self.manager)
+        self.assertIsNotNone(inventory_request.approved_at)
+
+    def test_reject_action_requires_reason(self):
+        inventory_request = InventoryRequest.objects.create(
+            product_name='TABLET',
+            quantity=1,
+            reason='Experiment',
+            status='PENDING',
+        )
+
+        response = self.client.post(reverse('inventory_request_decide', args=[inventory_request.id]), {
+            'decision': 'reject',
+            'rejected_reason': '',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Rejection reason is required.')
+        inventory_request.refresh_from_db()
+        self.assertEqual(inventory_request.status, 'PENDING')
+
+    def test_reject_action_sets_reason_and_actor(self):
+        inventory_request = InventoryRequest.objects.create(
+            product_name='SCANNER',
+            quantity=1,
+            reason='Not needed',
+            status='PENDING',
+        )
+
+        response = self.client.post(reverse('inventory_request_decide', args=[inventory_request.id]), {
+            'decision': 'reject',
+            'rejected_reason': 'Budget not approved',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        inventory_request.refresh_from_db()
+        self.assertEqual(inventory_request.status, 'REJECTED')
+        self.assertEqual(inventory_request.rejected_reason, 'Budget not approved')
+        self.assertEqual(inventory_request.rejected_by, self.manager)
+
+    def test_manager_cannot_approve_own_request(self):
+        inventory_request = InventoryRequest.objects.create(
+            product_name='HEADSET',
+            quantity=1,
+            reason='Need for meeting room',
+            status='PENDING',
+            created_by=self.manager,
+        )
+
+        response = self.client.post(reverse('inventory_request_decide', args=[inventory_request.id]), {
+            'decision': 'approve',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        inventory_request.refresh_from_db()
+        self.assertEqual(inventory_request.status, 'PENDING')
+        self.assertIsNone(inventory_request.approved_by)
+
+# endregion
