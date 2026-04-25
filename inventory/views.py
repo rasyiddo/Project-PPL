@@ -371,13 +371,26 @@ def product_create(request):
     if request.method == 'POST':
         form = ProductForm(request.POST)
         if form.is_valid():
-            form.save()
+            with transaction.atomic():
+                product = form.save(commit=False)
+                product.created_by = request.user
+                product.save()
+                if product.stock > 0:
+                    InventoryTransaction.objects.create(
+                        product=product,
+                        quantity=product.stock,
+                        transaction_type='IN',
+                        manual=True,
+                        notes='Initial stock on product creation',
+                        created_by=request.user,
+                    )
             return redirect('product_list')
     else:
         form = ProductForm()
 
     return render(request, 'inventory/product_form.html', {
-        'form': form
+        'form': form,
+        'is_edit': False,
     })
 
 
@@ -389,13 +402,30 @@ def product_update(request, pk):
     if request.method == 'POST':
         form = ProductForm(request.POST, instance=product)
         if form.is_valid():
-            form.save()
+            with transaction.atomic():
+                # Lock row to get accurate old_stock before saving
+                locked = Product.objects.select_for_update().get(pk=pk)
+                old_stock = locked.stock
+                updated = form.save()
+                new_stock = updated.stock
+                delta = new_stock - old_stock
+                if delta != 0:
+                    InventoryTransaction.objects.create(
+                        product=updated,
+                        quantity=abs(delta),
+                        transaction_type='IN' if delta > 0 else 'OUT',
+                        manual=True,
+                        notes=form.cleaned_data.get('notes', ''),
+                        created_by=request.user,
+                    )
             return redirect('product_list')
     else:
         form = ProductForm(instance=product)
 
     return render(request, 'inventory/product_form.html', {
-        'form': form
+        'form': form,
+        'is_edit': True,
+        'product': product,
     })
 
 
@@ -789,4 +819,159 @@ def inventory_request_create(request):
         'form': form,
         'products': Product.objects.all(),
         'rejected_request': rejected_request,
+    })
+
+
+# ─── CSV Exports ────────────────────────────────────────────────────────────
+
+import csv
+from datetime import date
+
+from django.http import HttpResponse
+
+
+def _parse_month(request):
+    """Return (year, month) from ?month=YYYY-MM, defaulting to current month."""
+    raw = request.GET.get('month', '')
+    try:
+        parts = raw.split('-')
+        year, month = int(parts[0]), int(parts[1])
+        if not (1 <= month <= 12):
+            raise ValueError
+    except (ValueError, IndexError):
+        today = date.today()
+        year, month = today.year, today.month
+    return year, month
+
+
+@login_required
+@permission_required('inventory.approve_inventoryrequest', raise_exception=True)
+def export_inventory_requests(request):
+    year, month = _parse_month(request)
+    rows = (
+        InventoryRequest.objects
+        .filter(created_at__year=year, created_at__month=month)
+        .select_related('product', 'created_by', 'approved_by', 'rejected_by')
+        .order_by('created_at')
+    )
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="inventory_requests_{year}_{month:02d}.csv"'
+    writer = csv.writer(response)
+    writer.writerow([
+        'ID', 'Product', 'Quantity', 'Reason', 'Status',
+        'Requested By', 'Requested At',
+        'Approved By', 'Approved At',
+        'Rejected By', 'Rejected At', 'Rejection Reason',
+    ])
+    for r in rows:
+        writer.writerow([
+            f'IR-{r.id:05d}',
+            r.product.name if r.product else r.product_name or '',
+            r.quantity,
+            r.reason or '',
+            r.get_status_display(),
+            str(r.created_by) if r.created_by else '',
+            r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '',
+            str(r.approved_by) if r.approved_by else '',
+            r.approved_at.strftime('%Y-%m-%d %H:%M') if r.approved_at else '',
+            str(r.rejected_by) if r.rejected_by else '',
+            r.rejected_at.strftime('%Y-%m-%d %H:%M') if r.rejected_at else '',
+            r.rejected_reason or '',
+        ])
+    return response
+
+
+@login_required
+@permission_required('inventory.approve_procurementrequest', raise_exception=True)
+def export_procurement_requests(request):
+    year, month = _parse_month(request)
+    rows = (
+        ProcurementRequest.objects
+        .filter(created_at__year=year, created_at__month=month)
+        .select_related('product', 'inventory_request', 'created_by', 'approved_by', 'rejected_by')
+        .order_by('created_at')
+    )
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="procurement_requests_{year}_{month:02d}.csv"'
+    writer = csv.writer(response)
+    writer.writerow([
+        'ID', 'Linked IR', 'Product', 'Quantity', 'Price', 'Notes', 'Status',
+        'Requested By', 'Requested At',
+        'Approved By', 'Approved At',
+        'Rejected By', 'Rejected At', 'Rejection Reason',
+    ])
+    for r in rows:
+        writer.writerow([
+            f'PR-{r.id:05d}',
+            f'IR-{r.inventory_request.id:05d}' if r.inventory_request else '',
+            r.product.name if r.product else r.product_name or '',
+            r.quantity,
+            str(r.price) if r.price else '',
+            r.notes or '',
+            r.get_status_display(),
+            str(r.created_by) if r.created_by else '',
+            r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '',
+            str(r.approved_by) if r.approved_by else '',
+            r.approved_at.strftime('%Y-%m-%d %H:%M') if r.approved_at else '',
+            str(r.rejected_by) if r.rejected_by else '',
+            r.rejected_at.strftime('%Y-%m-%d %H:%M') if r.rejected_at else '',
+            r.rejected_reason or '',
+        ])
+    return response
+
+
+@login_required
+@permission_required('inventory.approve_inventoryrequest', raise_exception=True)
+def export_inventory_transactions(request):
+    year, month = _parse_month(request)
+    rows = (
+        InventoryTransaction.objects
+        .filter(created_at__year=year, created_at__month=month)
+        .select_related('product', 'created_by', 'inventory_request', 'procurement_request')
+        .order_by('created_at')
+    )
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="inventory_transactions_{year}_{month:02d}.csv"'
+    writer = csv.writer(response)
+    writer.writerow([
+        'Time', 'Product', 'Type', 'Quantity', 'Reference', 'Manual', 'Notes', 'Recorded By',
+    ])
+    for t in rows:
+        if t.inventory_request:
+            ref = f'IR-{t.inventory_request.id:05d}'
+        elif t.procurement_request:
+            ref = f'PR-{t.procurement_request.id:05d}'
+        else:
+            ref = ''
+        writer.writerow([
+            t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else '',
+            t.product.name if t.product else '',
+            t.get_transaction_type_display(),
+            t.quantity,
+            ref,
+            'Yes' if t.manual else 'No',
+            t.notes or '',
+            str(t.created_by) if t.created_by else '',
+        ])
+    return response
+
+
+@login_required
+@permission_required('inventory.approve_inventoryrequest', raise_exception=True)
+def export_page(request):
+    today = date.today()
+    months = []
+    for i in range(12):
+        m = today.month - i
+        y = today.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        months.append({'value': f'{y}-{m:02d}', 'label': date(y, m, 1).strftime('%B %Y')})
+    return render(request, 'inventory/export.html', {
+        'months': months,
+        'selected': request.GET.get('month', today.strftime('%Y-%m')),
     })

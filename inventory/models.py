@@ -36,6 +36,8 @@ class InventoryTransaction(models.Model):
     procurement_request = models.ForeignKey('ProcurementRequest', on_delete=models.SET_NULL, null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    manual = models.BooleanField(default=False)
+    notes = models.CharField(max_length=500, null=True, blank=True)
 
 
 class InventoryRequest(models.Model):
