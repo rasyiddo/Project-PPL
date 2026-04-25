@@ -1,114 +1,143 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div class="space-y-6">
 
-<div class="flex justify-between items-center mb-4">
-    {% if mode == 'owner' %}
-    <h1 class="text-2xl font-bold">My Inventory Requests</h1>
-    {% if perms.inventory.add_inventoryrequest %}
-    <a href="{% url 'inventory_request_create' %}" class="bg-blue-600 text-white px-4 py-2 rounded">New Request</a>
+  <div class="flex items-center justify-between">
+    <div>
+      {% if mode == 'owner' %}
+      <h1 class="text-2xl font-bold text-gray-900">My Inventory Requests</h1>
+      <p class="mt-1 text-sm text-gray-500">Track the status of your inventory requests</p>
+      {% else %}
+      <h1 class="text-2xl font-bold text-gray-900">Inventory Request Approvals</h1>
+      <p class="mt-1 text-sm text-gray-500">Review and action pending requests from your team</p>
+      {% endif %}
+    </div>
+    {% if mode == 'owner' and perms.inventory.add_inventoryrequest %}
+    <a href="{% url 'inventory_request_create' %}" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+      + New Request
+    </a>
     {% endif %}
-    {% else %}
-    <h1 class="text-2xl font-bold">Inventory Request Approvals</h1>
-    {% endif %}
-</div>
+  </div>
 
-<table class="w-full bg-white shadow rounded text-sm">
-    <thead>
-        <tr class="border-b bg-gray-50">
-            <th class="p-2 text-center w-28">ID</th>
-            <th class="p-2 text-left w-1/3">Request Details</th>
-            <th class="p-2 text-left w-24">Current<br/>Stock</th>
-            <th class="p-2 text-left">Status</th>
-            <th class="p-2 text-left w-56">Action</th>
-        </tr>
-    </thead>
-    <tbody>
-    {% for inventory_request in inventory_requests %}
-    <tr class="border-b align-top hover:bg-blue-50">
-        <td class="p-2 align-middle align-middle text-center font-mono font-semibold text-gray-700">IR-{{ inventory_request.id|stringformat:"05d" }}</td>
-        <td class="p-2 align-middle align-middle space-y-0.5">
-            <p><span class="font-medium text-gray-500">Product:</span>
+  <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-gray-50 border-b">
+            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">ID</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-1/3">Request Details</th>
+            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Stock</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-52">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+        {% for inventory_request in inventory_requests %}
+        <tr class="hover:bg-blue-50 transition-colors align-top">
+          <td class="px-4 py-3 align-middle text-center">
+            <span class="font-mono text-xs font-semibold text-gray-500">IR-{{ inventory_request.id|stringformat:"05d" }}</span>
+          </td>
+          <td class="px-4 py-3 align-middle">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2 flex-wrap">
                 {% if inventory_request.product %}
-                <a href="{% url 'product_detail' inventory_request.product.id %}?next={{ request.path }}" class="text-blue-600 hover:underline">{{ inventory_request.product.name }}</a>
+                <a href="{% url 'product_detail' inventory_request.product.id %}?next={{ request.path }}" class="font-semibold text-gray-900 hover:text-blue-600">{{ inventory_request.product.name }}</a>
                 {% if inventory_request.product.stock < inventory_request.quantity and inventory_request.status != 'FULFILLED' %}
-                <span class="ml-1 inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">Needs Procurement</span>
+                <span class="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">Needs Procurement</span>
                 {% endif %}
                 {% else %}
-                {{ inventory_request.product_name }}
+                <span class="font-semibold text-gray-900">{{ inventory_request.product_name }}</span>
                 {% if inventory_request.status != 'FULFILLED' %}
-                <span class="ml-1 inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">Needs Procurement</span>
+                <span class="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">Needs Procurement</span>
                 {% endif %}
                 {% endif %}
-            </p>
-            <p><span class="font-medium text-gray-500">Quantity:</span> {{ inventory_request.quantity }}</p>
-            <p><span class="font-medium text-gray-500">Reason:</span> <span class="italic text-gray-600">{{ inventory_request.reason|default:"-" }}</span></p>
-            {% if mode == 'approver' %}
-            <p><span class="font-medium text-gray-500">Requested By:</span> {{ inventory_request.created_by|default:"-" }}</p>
+              </div>
+              <p class="text-xs text-gray-500">Qty: <span class="font-medium text-gray-700">{{ inventory_request.quantity }}</span></p>
+              {% if inventory_request.reason %}
+              <p class="text-xs text-gray-500 italic">{{ inventory_request.reason }}</p>
+              {% endif %}
+              {% if mode == 'approver' %}
+              <p class="text-xs text-gray-400">By <span class="font-medium text-gray-600">{{ inventory_request.created_by|default:"-" }}</span></p>
+              {% else %}
+              <p class="text-xs text-gray-400">{{ inventory_request.created_at|date:"M d, Y H:i" }}</p>
+              {% endif %}
+            </div>
+          </td>
+          <td class="px-4 py-3 align-middle text-center">
+            {% if inventory_request.product %}
+            <span class="font-semibold {% if inventory_request.product.stock == 0 %}text-red-600{% elif inventory_request.product.stock < 10 %}text-amber-600{% else %}text-gray-700{% endif %}">
+              {{ inventory_request.product.stock }}
+            </span>
             {% else %}
-            <p class="text-xs text-gray-400">{{ inventory_request.created_at|date:"M d, Y H:i" }}</p>
+            <span class="text-gray-400">—</span>
             {% endif %}
-        </td>
-        <td class="p-2 align-middle align-middle text-gray-500">
-            {% if inventory_request.product %}{{ inventory_request.product.stock }}{% else %}-{% endif %}
-        </td>
-        <td class="p-2 align-middle align-middle">
-            <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium
+          </td>
+          <td class="px-4 py-3 align-middle">
+            <div class="space-y-1">
+              <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
                 {% if inventory_request.status == 'PENDING' %}bg-amber-100 text-amber-800
                 {% elif inventory_request.status == 'APPROVED' %}bg-emerald-100 text-emerald-800
                 {% elif inventory_request.status == 'FULFILLED' %}bg-blue-100 text-blue-800
                 {% elif inventory_request.status == 'REJECTED' %}bg-red-100 text-red-800
-                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {% else %}bg-gray-100 text-gray-700{% endif %}">
                 {{ inventory_request.get_status_display }}
-            </span>
-            {% if inventory_request.status == 'APPROVED' %}
-            <p class="mt-1 text-gray-500 text-xs">
-                Approved by <span class="font-medium text-gray-700">{{ inventory_request.approved_by|default:"-" }}</span>
+              </span>
+              {% if inventory_request.status == 'APPROVED' %}
+              <p class="text-xs text-gray-400 pt-0.5">
+                by <span class="font-medium text-gray-600">{{ inventory_request.approved_by|default:"-" }}</span>
                 {% if inventory_request.approved_at %}<br/>{{ inventory_request.approved_at|date:"M d, Y H:i" }}{% endif %}
-            </p>
-            {% elif inventory_request.status == 'REJECTED' %}
-            <p class="text-gray-500 text-xs mt-1">
-                Rejected by <span class="font-medium text-gray-700">{{ inventory_request.rejected_by|default:"-" }}</span>
-                {% if inventory_request.rejected_at %}· {{ inventory_request.rejected_at|date:"M d, Y H:i" }}{% endif %}
-            </p>
-            {% if inventory_request.rejected_reason %}
-            <p class="mt-1 text-xs text-red-700">Reason: {{ inventory_request.rejected_reason }}</p>
-            {% endif %}
-            {% endif %}
-        </td>
-        <td class="p-2 align-middle align-middle">
-            <div class="space-y-2">
-            <a href="{% url 'inventory_request_detail' inventory_request.id %}" class="inline-block rounded bg-blue-600 px-3 py-2 text-white text-sm">Detail</a>
-            {% if mode == 'approver' and inventory_request.status == 'PENDING' %}
-            <div>
-                <form class="mb-4" method="post" action="{% url 'inventory_request_decide' inventory_request.id %}">
-                    {% csrf_token %}
-                    <input type="hidden" name="decision" value="approve">
-                    <button class="rounded bg-emerald-600 px-3 py-2 text-white">Approve</button>
-                </form>
-                <form method="post" action="{% url 'inventory_request_decide' inventory_request.id %}">
-                    {% csrf_token %}
-                    <input type="hidden" name="decision" value="reject">
-                    <textarea name="rejected_reason" rows="2" class="w-full rounded-lg border px-3 py-2" placeholder="Reason for rejection"></textarea>
-                    {% if rejection_error_for_id == inventory_request.id %}
-                    <p class="text-sm text-red-600">Rejection reason is required.</p>
-                    {% endif %}
-                    <button class="rounded bg-red-600 px-3 py-2 text-white">Reject</button>
-                </form>
+              </p>
+              {% elif inventory_request.status == 'REJECTED' %}
+              <p class="text-xs text-gray-400 pt-0.5">
+                by <span class="font-medium text-gray-600">{{ inventory_request.rejected_by|default:"-" }}</span>
+                {% if inventory_request.rejected_at %}<br/>{{ inventory_request.rejected_at|date:"M d, Y H:i" }}{% endif %}
+              </p>
+              {% if inventory_request.rejected_reason %}
+              <p class="text-xs text-red-600 italic">{{ inventory_request.rejected_reason }}</p>
+              {% endif %}
+              {% endif %}
             </div>
-            {% elif mode == 'owner' and perms.inventory.add_inventoryrequest and inventory_request.status == 'REJECTED' %}
-            <a href="{% url 'inventory_request_create' %}?from={{ inventory_request.id }}" class="mt-2 inline-block rounded bg-blue-600 px-3 py-2 text-white text-sm">Re-submit</a>
-            {% endif %}
+          </td>
+          <td class="px-4 py-3 align-middle">
+            <div class="flex flex-col gap-2">
+              <div>
+                <a href="{% url 'inventory_request_detail' inventory_request.id %}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Detail</a>
+              </div>
+              {% if mode == 'approver' and inventory_request.status == 'PENDING' %}
+              <form method="post" action="{% url 'inventory_request_decide' inventory_request.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="decision" value="approve">
+                <button class="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">Approve</button>
+              </form>
+              <form method="post" action="{% url 'inventory_request_decide' inventory_request.id %}" class="space-y-1.5">
+                {% csrf_token %}
+                <input type="hidden" name="decision" value="reject">
+                <textarea name="rejected_reason" rows="2" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-300" placeholder="Reason for rejection"></textarea>
+                {% if rejection_error_for_id == inventory_request.id %}
+                <p class="text-xs text-red-600">Rejection reason is required.</p>
+                {% endif %}
+                <button class="inline-flex items-center rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700">Reject</button>
+              </form>
+              {% elif mode == 'owner' and perms.inventory.add_inventoryrequest and inventory_request.status == 'REJECTED' %}
+              <a href="{% url 'inventory_request_create' %}?from={{ inventory_request.id }}" class="inline-flex items-center rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">Re-submit</a>
+              {% endif %}
             </div>
-        </td>
-    </tr>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="px-4 py-12 text-center text-gray-400">
+            <p class="text-3xl mb-2">📋</p>
+            <p class="font-medium text-gray-500">No inventory requests available.</p>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 
-    {% empty %}
-    <tr>
-        <td colspan="5" class="p-4 text-center text-gray-500">No inventory requests available.</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-</table>
-
+</div>
 {% endblock %}
+

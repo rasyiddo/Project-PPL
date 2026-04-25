@@ -31,7 +31,7 @@
     </div>
 
     <!-- Stock indicator -->
-    <div class="mt-5 pt-5 border-t flex items-center gap-6">
+    <div class="mt-5 pt-5 border-t flex items-top gap-6">
       <div>
         <p class="text-xs text-gray-400 uppercase tracking-wide">Current Stock</p>
         <p class="mt-1 text-3xl font-bold {% if product.stock == 0 %}text-red-600{% elif product.stock < 10 %}text-amber-600{% else %}text-gray-900{% endif %}">
@@ -64,7 +64,7 @@
     {% if ir_count is not None %}
     <div class="bg-white rounded-xl border shadow-sm p-5">
       <p class="text-2xl font-bold text-gray-900">{{ ir_count }}</p>
-      <p class="text-sm text-gray-500 mt-1">Total Requests</p>
+      <p class="text-sm text-gray-500 mt-1"># of Requests</p>
       <div class="mt-2 h-1 rounded-full bg-blue-200"></div>
     </div>
     <div class="bg-white rounded-xl border shadow-sm p-5">
@@ -76,12 +76,12 @@
     {% if pr_count is not None %}
     <div class="bg-white rounded-xl border shadow-sm p-5">
       <p class="text-2xl font-bold text-gray-900">{{ pr_count }}</p>
-      <p class="text-sm text-gray-500 mt-1">Procurement Orders</p>
+      <p class="text-sm text-gray-500 mt-1"># of Procurement</p>
       <div class="mt-2 h-1 rounded-full bg-violet-200"></div>
     </div>
     <div class="bg-white rounded-xl border shadow-sm p-5">
       <p class="text-2xl font-bold text-violet-600">{{ pr_fulfilled_count }}</p>
-      <p class="text-sm text-gray-500 mt-1">Stock Received</p>
+      <p class="text-sm text-gray-500 mt-1">Fulfilled</p>
       <div class="mt-2 h-1 rounded-full bg-violet-200"></div>
     </div>
     {% endif %}

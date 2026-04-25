@@ -1,62 +1,78 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div class="space-y-6">
 
-<div class="flex justify-between items-center mb-4">
-    <h1 class="text-2xl font-bold">Warehouse Fulfillment Queue</h1>
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Warehouse Fulfillment Queue</h1>
+        <p class="mt-1 text-sm text-gray-500">Approved inventory requests awaiting stock dispatch</p>
+    </div>
+
+    <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                <tr class="bg-gray-50 border-b">
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">ID</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Product</th>
+                    <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Qty</th>
+                    <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Stock</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-56g">Actions</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                {% for inventory_request in inventory_requests %}
+                <tr class="hover:bg-blue-50 transition-colors">
+                    <td class="px-4 py-3 align-middle">
+                        <span class="font-mono text-xs font-semibold text-gray-500">IR-{{ inventory_request.id|stringformat:"05d" }}</span>
+                    </td>
+                    <td class="px-4 py-3 align-middle">
+                        {% if inventory_request.product %}
+                        <a href="{% url 'product_detail' inventory_request.product.id %}?next={{ request.path }}"
+                           class="font-medium text-gray-900 hover:text-blue-600">{{ inventory_request.product.name }}</a>
+                        {% else %}
+                        <span class="font-medium text-gray-700">{{ inventory_request.product_name }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 align-middle text-center font-semibold text-gray-800">{{ inventory_request.quantity }}</td>
+                    <td class="px-4 py-3 align-middle text-center">
+                        {% if inventory_request.product %}
+                        <span class="font-semibold {% if inventory_request.product.stock == 0 %}text-red-600{% elif inventory_request.product.stock < inventory_request.quantity %}text-amber-600{% else %}text-emerald-600{% endif %}">
+                {{ inventory_request.product.stock }}
+              </span>
+                        {% else %}
+                        <span class="text-gray-400">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 align-middle">
+                        <a href="{% url 'inventory_request_detail' inventory_request.id %}"
+                           class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Detail</a>
+                        {% if not inventory_request.product or inventory_request.product.stock < inventory_request.quantity %}
+                        <a href="{% url 'procurement_request_create' %}?inventory_request={{ inventory_request.id }}"
+                           class="inline-flex items-center rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600">Procure</a>
+                        {% else %}
+                        <form method="post" action="{% url 'warehouse_inventory_request_fulfill' inventory_request.id %}" class="inline-flex">
+                            {% csrf_token %}
+                            <button class=" items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
+                                Fulfill
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="px-4 py-12 text-center text-gray-400">
+                        <p class="text-3xl mb-2">✅</p>
+                        <p class="font-medium text-gray-500">No approved requests are ready for fulfillment.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
-
-<table class="w-full bg-white shadow rounded">
-    <tr class="border-b">
-        <th class="p-2 text-left">ID</th>
-        <th class="p-2 text-left">Product</th>
-        <th class="p-2 text-left">Requested By</th>
-        <th class="p-2 text-left">Quantity</th>
-        <th class="p-2 text-left">Available Stock</th>
-        <th class="p-2 text-left">Approved At</th>
-        <th class="p-2 text-left">Action</th>
-    </tr>
-
-    {% for inventory_request in inventory_requests %}
-    <tr class="border-b hover:bg-blue-50">
-        <td class="p-2 align-middle align-middle">{{ inventory_request.id }}</td>
-        <td class="p-2 align-middle align-middle">
-            {% if inventory_request.product %}
-            <a href="{% url 'product_detail' inventory_request.product.id %}?next={{ request.path }}" class="text-blue-600 hover:underline font-medium">{{ inventory_request.product.name }}</a>
-            {% else %}
-            {{ inventory_request.product_name }}
-            {% endif %}
-        </td>
-        <td class="p-2 align-middle align-middle">{{ inventory_request.created_by|default:"-" }}</td>
-        <td class="p-2 align-middle align-middle">{{ inventory_request.quantity }}</td>
-        <td class="p-2 align-middle align-middle">
-            {% if inventory_request.product %}
-            {{ inventory_request.product.stock }}
-            {% else %}
-            -
-            {% endif %}
-        </td>
-        <td class="p-2 align-middle align-middle">
-            {% if inventory_request.approved_at %}
-            {{ inventory_request.approved_at|date:"M d, Y H:i" }}
-            {% else %}
-            -
-            {% endif %}
-        </td>
-        <td class="p-2 align-middle align-middle">
-            <form method="post" action="{% url 'warehouse_inventory_request_fulfill' inventory_request.id %}">
-                {% csrf_token %}
-                <button class="rounded bg-blue-600 px-3 py-2 text-white">
-                    Fulfill
-                </button>
-            </form>
-        </td>
-    </tr>
-    {% empty %}
-    <tr>
-        <td colspan="7" class="p-4 text-center text-gray-500">No approved requests are ready for fulfillment.</td>
-    </tr>
-    {% endfor %}
-</table>
-
 {% endblock %}
+
