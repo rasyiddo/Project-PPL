@@ -1,61 +1,63 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% load widget_tweaks %}
+<div class="max-w-2xl space-y-6">
 
-<h1 class="text-2xl font-bold mb-4">Create Procurement Request</h1>
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Create Procurement Request</h1>
+    <p class="mt-1 text-sm text-gray-500">Submit a procurement request linked to this inventory request</p>
+  </div>
 
-<div class="mb-4 rounded bg-white p-4 shadow">
-    <p><span class="font-semibold">Inventory Request:</span> #{{ inventory_request.id }}</p>
-    <p><span class="font-semibold">Product:</span>
-        {% if inventory_request.product %}
-        {{ inventory_request.product.name }}
-        {% else %}
-        {{ inventory_request.product_name }}
-        {% endif %}
+  <div class="bg-white rounded-xl border shadow-sm p-6 space-y-3">
+    <p class="text-sm"><span class="font-semibold text-gray-700">Inventory Request:</span> <span class="text-gray-600">#{{ inventory_request.id }}</span></p>
+    <p class="text-sm"><span class="font-semibold text-gray-700">Product:</span>
+      <span class="text-gray-600">
+        {% if inventory_request.product %}{{ inventory_request.product.name }}{% else %}{{ inventory_request.product_name }}{% endif %}
+      </span>
     </p>
-    <p><span class="font-semibold">Quantity:</span> {{ inventory_request.quantity }}</p>
-    <p><span class="font-semibold">Current Stock:</span>
-        {% if inventory_request.product %}
-        {{ inventory_request.product.stock }}
-        {% else %}
-        -
-        {% endif %}
+    <p class="text-sm"><span class="font-semibold text-gray-700">Quantity:</span> <span class="text-gray-600">{{ inventory_request.quantity }}</span></p>
+    <p class="text-sm"><span class="font-semibold text-gray-700">Current Stock:</span>
+      <span class="text-gray-600">
+        {% if inventory_request.product %}{{ inventory_request.product.stock }}{% else %}-{% endif %}
+      </span>
     </p>
-</div>
+  </div>
 
-<form method="post" class="bg-white p-4 rounded shadow space-y-4">
+  <form method="post" class="bg-white rounded-xl border shadow-sm p-6 space-y-5">
     {% csrf_token %}
 
     {% if form.non_field_errors %}
-    <span class="text-red-500">{{ form.non_field_errors }}</span>
+    <div class="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+      {{ form.non_field_errors }}
+    </div>
     {% endif %}
 
     <div>
-        {{ form.price.label_tag }}
-        <div class="flex">
-            <span class="inline-flex items-center rounded-l-lg border border-r-0 bg-gray-100 px-3 text-gray-700">
-                Rp
-            </span>
-            {{ form.price }}
-        </div>
-        <p class="mt-1 text-xs text-gray-500">Use IDR format. Example: 1.250.000</p>
-        {% if form.price.errors %}
-        <span class="text-red-500">{{ form.price.errors }}</span>
-        {% endif %}
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{ form.price.label }}</label>
+      <div class="flex">
+        <span class="inline-flex items-center rounded-l-lg border border-r-0 border-gray-200 bg-gray-100 px-3 text-sm text-gray-700">Rp</span>
+        {{ form.price }}
+      </div>
+      <p class="mt-1 text-xs text-gray-500">Use IDR format. Example: 1.250.000</p>
+      <p class="mt-1 text-xs text-red-600">{{ form.price.errors|join:", " }}</p>
     </div>
 
     <div>
-        {{ form.notes.label_tag }}
-        {{ form.notes }}
-        {% if form.notes.errors %}
-        <span class="text-red-500">{{ form.notes.errors }}</span>
-        {% endif %}
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{ form.notes.label }}</label>
+      {{ form.notes }}
+      <p class="mt-1 text-xs text-red-600">{{ form.notes.errors|join:", " }}</p>
     </div>
 
-    <button class="bg-blue-600 text-white px-4 py-2 rounded">
+    <div class="flex gap-3 pt-2">
+      <button class="inline-flex items-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700">
         Submit Procurement Request
-    </button>
-</form>
+      </button>
+      <a href="/warehouse/requests/" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
+    </div>
+  </form>
+
+</div>
 
 <script>
     $(document).ready(function () {

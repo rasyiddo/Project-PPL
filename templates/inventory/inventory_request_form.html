@@ -1,75 +1,77 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% load widget_tweaks %}
+<div class="max-w-2xl space-y-6">
 
-<h1 class="text-2xl font-bold mb-4">Inventory Request Form</h1>
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Inventory Request Form</h1>
+    <p class="mt-1 text-sm text-gray-500">Submit a new request for inventory items</p>
+  </div>
 
-{% if rejected_request %}
-<div class="mb-4 rounded border border-red-200 bg-red-50 p-4">
-    <p class="font-semibold text-red-700">Re-submitting based on rejected request #{{ rejected_request.id }}</p>
+  {% if rejected_request %}
+  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+    <p class="text-sm font-semibold text-red-700">Re-submitting based on rejected request #{{ rejected_request.id }}</p>
     <p class="mt-1 text-sm text-red-600"><span class="font-medium">Rejection reason:</span> {{ rejected_request.rejected_reason }}</p>
-</div>
-{% endif %}
+  </div>
+  {% endif %}
 
-<form method="post" class="bg-white p-4 rounded shadow space-y-4">
+  <form method="post" class="bg-white rounded-xl border shadow-sm p-6 space-y-5">
     {% csrf_token %}
 
-    {% load widget_tweaks %}
-
     {% if form.non_field_errors %}
-    <span class="text-red-500"> {{ form.non_field_errors  }}</span>
+    <div class="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+      {{ form.non_field_errors }}
+    </div>
     {% endif %}
 
-    <div>
-        {{ form.use_manual_product }} {{ form.use_manual_product.label }}
+    <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+      {{ form.use_manual_product }}
+      <label for="{{ form.use_manual_product.id_for_label }}" class="text-sm font-medium text-gray-700 cursor-pointer">
+        {{ form.use_manual_product.label }}
+      </label>
     </div>
 
     <div id="product" class="hidden">
-        {{ form.product.label_tag }}
-        <select id="id_product" name="product" class="w-full border rounded-lg px-3 py-2">
-            <option value="">Select a Product!</option>
-            {% for product in products %}
-            <option value="{{ product.id }}" data-stock="{{ product.stock }}" {% if form.product.value|stringformat:"s" == product.id|stringformat:"s" %}selected{% endif %}> {{ product.name }} (Stock: {{ product.stock }})</option>
-            {% endfor %}
-        </select>
-        {% if form.product.errors %}
-        <span class="text-red-500"> {{ form.product.errors  }}</span>
-        {% endif %}
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{ form.product.label }}</label>
+      <select id="id_product" name="product" class="w-full border rounded-lg px-3 py-2">
+        <option value="">Select a Product!</option>
+        {% for product in products %}
+        <option value="{{ product.id }}" data-stock="{{ product.stock }}" {% if form.product.value|stringformat:"s" == product.id|stringformat:"s" %}selected{% endif %}>{{ product.name }} (Stock: {{ product.stock }})</option>
+        {% endfor %}
+      </select>
+      <p class="mt-1 text-xs text-red-600">{{ form.product.errors|join:", " }}</p>
     </div>
 
     <div id="product_name" class="hidden">
-        {{ form.product_name.label_tag }}
-        {{ form.product_name }}
-        <p class="text-xs text-yellow-600 mt-1">
-            ⚠ Using manual entry will require procurement process before fulfillment.
-        </p>
-        {% if form.product_name.errors %}
-        <span class="text-red-500"> {{ form.product_name.errors  }}</span>
-        {% endif %}
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{ form.product_name.label }}</label>
+      {{ form.product_name }}
+      <p class="mt-1 text-xs text-yellow-600">⚠ Using manual entry will require procurement process before fulfillment.</p>
+      <p class="mt-1 text-xs text-red-600">{{ form.product_name.errors|join:", " }}</p>
     </div>
 
     <div>
-        {{ form.quantity.label_tag }}
-        {{ form.quantity }}
-        <div id="stock-warning" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 p-2 rounded mt-2">
-        </div>
-        {% if form.quantity.errors %}
-        <span class="text-red-500"> {{ form.quantity.errors  }}</span>
-        {% endif %}
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{ form.quantity.label }}</label>
+      {{ form.quantity }}
+      <div id="stock-warning" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg mt-2"></div>
+      <p class="mt-1 text-xs text-red-600">{{ form.quantity.errors|join:", " }}</p>
     </div>
 
     <div>
-        {{ form.reason.label_tag }}
-        {{ form.reason }}
-        {% if form.reason.errors %}
-        <span class="text-red-500"> {{ form.reason.errors  }}</span>
-        {% endif %}
+      <label class="block text-sm font-medium text-gray-700 mb-1">{{ form.reason.label }}</label>
+      {{ form.reason }}
+      <p class="mt-1 text-xs text-red-600">{{ form.reason.errors|join:", " }}</p>
     </div>
 
-    <button class="bg-blue-600 text-white px-4 py-2 rounded">
+    <div class="flex gap-3 pt-2">
+      <button class="inline-flex items-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700">
         Submit Inventory Request
-    </button>
-</form>
+      </button>
+      <a href="/requests/" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
+    </div>
+  </form>
+
+</div>
 
 <script>
     $(document).ready(function () {
@@ -94,23 +96,6 @@
         {% if form.product_name.value and not form.product.value %}
         checkbox.checked = true;
         {% endif %}
-
-        function toggleFields() {
-            console.log(checkbox.checked)
-            if (checkbox.checked) {
-                $("#id_product").val(null).trigger("change").prop("disabled", true);
-                $("#id_product_name").prop("disabled", false);
-                $("#product_name").addClass("block").removeClass("hidden");
-                $("#product").addClass("hidden").removeClass("block");
-            } else {
-                $("#id_product").prop("disabled", false);
-                $("#id_product_name").val("").prop("disabled", true);
-                $("#product").addClass("block").removeClass("hidden");
-                $("#product_name").addClass("hidden").removeClass("block");
-            }
-        }
-
-        checkbox.addEventListener("change", toggleFields);
 
         // quantity warning — declare before toggleFields() so change events don't hit TDZ
         const DEFAULT_STOCK = 100000000000;
@@ -138,6 +123,22 @@
                 warningBox.hide();
             }
         }
+
+        function toggleFields() {
+            if (checkbox.checked) {
+                $("#id_product").val(null).trigger("change").prop("disabled", true);
+                $("#id_product_name").prop("disabled", false);
+                $("#product_name").addClass("block").removeClass("hidden");
+                $("#product").addClass("hidden").removeClass("block");
+            } else {
+                $("#id_product").prop("disabled", false);
+                $("#id_product_name").val("").prop("disabled", true);
+                $("#product").addClass("block").removeClass("hidden");
+                $("#product_name").addClass("hidden").removeClass("block");
+            }
+        }
+
+        checkbox.addEventListener("change", toggleFields);
 
         toggleFields();
         syncSelectedStock();
