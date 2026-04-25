@@ -6,7 +6,7 @@ from django.template.defaultfilters import date as date_filter
 from django.urls import reverse
 from django.utils import timezone
 from inventory.forms import ProductForm, InventoryRequestForm
-from inventory.models import Product, InventoryRequest, InventoryTransaction
+from inventory.models import Product, InventoryRequest, InventoryTransaction, ProcurementRequest
 
 
 # region Product
@@ -397,6 +397,29 @@ class InventoryRequestApprovalViewTest(TestCase):
         self.assertEqual(inventory_request.status, 'PENDING')
         self.assertIsNone(inventory_request.approved_by)
 
+    def test_approval_list_shows_stock_and_procurement_label(self):
+        low_stock_product = Product.objects.create(name='PRINTER', stock=1)
+        InventoryRequest.objects.create(
+            product=low_stock_product,
+            quantity=3,
+            reason='Replace broken unit',
+            status='PENDING',
+        )
+        InventoryRequest.objects.create(
+            product_name='NEW TABLET',
+            quantity=2,
+            reason='New joiners',
+            status='PENDING',
+        )
+
+        response = self.client.get(reverse('inventory_request_approval_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Current Stock')
+        self.assertContains(response, 'Needs Procurement')
+        self.assertContains(response, '>1<', html=False)
+        self.assertContains(response, 'NEW TABLET')
+
 
 # endregion
 
@@ -407,8 +430,15 @@ class WarehouseInventoryRequestViewTest(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(username='warehouse', password='secret')
         add_transaction_permission = Permission.objects.get(codename='add_inventorytransaction')
+        add_procurement_permission = Permission.objects.get(codename='add_procurementrequest')
+        view_procurement_permission = Permission.objects.get(codename='view_procurementrequest')
         view_transaction_permission = Permission.objects.get(codename='view_inventorytransaction')
-        self.staff.user_permissions.add(add_transaction_permission, view_transaction_permission)
+        self.staff.user_permissions.add(
+            add_transaction_permission,
+            add_procurement_permission,
+            view_procurement_permission,
+            view_transaction_permission,
+        )
         self.client.force_login(self.staff)
 
     def test_fulfillment_list_only_shows_approved_requests_with_enough_stock(self):
@@ -517,5 +547,150 @@ class WarehouseInventoryRequestViewTest(TestCase):
         self.assertContains(response, product.name)
         self.assertContains(response, f'#{outgoing.inventory_request.id}')
         self.assertContains(response, date_filter(timezone.localtime(incoming.created_at), "M d, Y H:i"))
+
+    def test_procurement_queue_shows_approved_requests_needing_procurement(self):
+        missing_product_request = InventoryRequest.objects.create(
+            product_name='NEW TABLET',
+            quantity=2,
+            reason='New joiners',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+        available_product = Product.objects.create(name='MOUSE', stock=10)
+        InventoryRequest.objects.create(
+            product=available_product,
+            quantity=3,
+            reason='Can be fulfilled directly',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse('warehouse_inventory_request_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, missing_product_request.product_name)
+        self.assertContains(response, available_product.name)
+
+    def test_non_fulfillable_request_redirects_to_procurement_form(self):
+        inventory_request = InventoryRequest.objects.create(
+            product_name='NEW MONITOR',
+            quantity=2,
+            reason='Expansion',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+
+        response = self.client.post(reverse('warehouse_inventory_request_fulfill', args=[inventory_request.id]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.headers['Location'],
+            reverse('warehouse_procurement_request_create', args=[inventory_request.id]),
+        )
+
+    def test_procurement_request_can_be_created_from_procurement_form(self):
+        inventory_request = InventoryRequest.objects.create(
+            product_name='NEW MONITOR',
+            quantity=2,
+            reason='Expansion',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+
+        response = self.client.post(reverse('warehouse_procurement_request_create', args=[inventory_request.id]), {
+            'price': '1.250.000',
+            'notes': 'Need supplier quotation and delivery estimate.',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        procurement_request = ProcurementRequest.objects.get()
+        self.assertEqual(procurement_request.inventory_request, inventory_request)
+        self.assertEqual(procurement_request.product_name, 'NEW MONITOR')
+        self.assertEqual(procurement_request.quantity, 2)
+        self.assertEqual(procurement_request.created_by, self.staff)
+        self.assertEqual(procurement_request.status, 'PENDING')
+        self.assertEqual(str(procurement_request.price), '1250000.00')
+        self.assertEqual(procurement_request.notes, 'Need supplier quotation and delivery estimate.')
+
+    def test_procurement_request_is_not_created_for_fulfillable_inventory_request(self):
+        product = Product.objects.create(name='KEYBOARD', stock=10)
+        inventory_request = InventoryRequest.objects.create(
+            product=product,
+            quantity=2,
+            reason='Can be fulfilled',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+
+        response = self.client.post(reverse('warehouse_procurement_request_create', args=[inventory_request.id]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ProcurementRequest.objects.filter(inventory_request=inventory_request).exists())
+
+    def test_my_procurement_list_only_shows_current_staff_requests(self):
+        own_request = ProcurementRequest.objects.create(
+            product_name='MOUSEPAD',
+            quantity=4,
+            price='20.00',
+            notes='Bulk order',
+            created_by=self.staff,
+        )
+        other_staff = User.objects.create_user(username='other-warehouse', password='secret')
+        ProcurementRequest.objects.create(
+            product_name='CHAIR',
+            quantity=2,
+            price='50.00',
+            notes='Other staff order',
+            created_by=other_staff,
+        )
+
+        response = self.client.get(reverse('procurement_request_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, own_request.product_name)
+        self.assertNotContains(response, 'CHAIR')
+        self.assertContains(response, 'Rp 20')
+
+
+class ProcurementRequestApprovalViewTest(TestCase):
+
+    def setUp(self):
+        self.manager = User.objects.create_user(username='proc-manager', password='secret')
+        approve_permission = Permission.objects.get(codename='approve_procurementrequest')
+        self.manager.user_permissions.add(approve_permission)
+        self.client.force_login(self.manager)
+
+    def test_procurement_request_appears_in_manager_approval_list(self):
+        procurement_request = ProcurementRequest.objects.create(
+            product_name='DOCKING STATION',
+            quantity=4,
+            price='149.00',
+            notes='Needed for onboarding.',
+            created_by=User.objects.create_user(username='warehouse-maker', password='secret'),
+        )
+
+        response = self.client.get(reverse('procurement_request_approval_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, procurement_request.product_name)
+        self.assertContains(response, 'Rp 149')
+        self.assertContains(response, procurement_request.notes)
+
+    def test_procurement_approve_action_updates_request(self):
+        procurement_request = ProcurementRequest.objects.create(
+            product_name='WEBCAM',
+            quantity=1,
+            price='89.00',
+        )
+
+        response = self.client.post(reverse('procurement_request_decide', args=[procurement_request.id]), {
+            'decision': 'approve',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        procurement_request.refresh_from_db()
+        self.assertEqual(procurement_request.status, 'APPROVED')
+        self.assertEqual(procurement_request.approved_by, self.manager)
+        self.assertIsNotNone(procurement_request.approved_at)
 
 # endregion

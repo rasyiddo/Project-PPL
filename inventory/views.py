@@ -1,11 +1,11 @@
 from django.contrib.auth.decorators import login_required, permission_required
 from django.db import transaction
-from django.db.models import Case, F, IntegerField, Value, When
+from django.db.models import Case, F, IntegerField, Q, Value, When
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
-from .forms import ProductForm, InventoryRequestForm
-from .models import Product, InventoryRequest, InventoryTransaction
+from .forms import ProductForm, InventoryRequestForm, ProcurementRequestForm
+from .models import Product, InventoryRequest, InventoryTransaction, ProcurementRequest
 
 
 def get_inventory_request_approval_queryset(user):
@@ -28,13 +28,26 @@ def get_inventory_request_approval_queryset(user):
 def get_warehouse_fulfillment_queryset():
     return (
         InventoryRequest.objects
-        .filter(
-            status='APPROVED',
-            product__isnull=False,
-            product__stock__gte=F('quantity'),
-        )
+        .filter(status='APPROVED', procurementrequest__isnull=True)
         .select_related('product', 'created_by', 'approved_by')
         .order_by('-approved_at', '-created_at')
+    )
+
+
+def get_procurement_request_approval_queryset():
+    return (
+        ProcurementRequest.objects
+        .select_related('product', 'inventory_request', 'created_by')
+        .annotate(
+            approval_priority=Case(
+                When(status='PENDING', then=Value(0)),
+                When(status='APPROVED', then=Value(1)),
+                When(status='REJECTED', then=Value(2)),
+                default=Value(3),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by('approval_priority', '-created_at')
     )
 
 
@@ -169,6 +182,109 @@ def warehouse_inventory_transaction_list(request):
 
 
 @login_required
+@permission_required('inventory.view_procurementrequest', raise_exception=True)
+def procurement_request_list(request):
+    procurement_requests = (
+        ProcurementRequest.objects
+        .filter(created_by=request.user)
+        .select_related('product', 'inventory_request', 'approved_by', 'rejected_by')
+        .order_by('-created_at')
+    )
+    return render(request, 'inventory/procurement_request_list.html', {
+        'procurement_requests': procurement_requests
+    })
+
+
+@login_required
+@permission_required('inventory.add_procurementrequest', raise_exception=True)
+def warehouse_procurement_request_create(request, pk):
+    inventory_request = get_object_or_404(
+        InventoryRequest.objects.select_related('product'),
+        pk=pk,
+        status='APPROVED',
+    )
+
+    existing_procurement_request = ProcurementRequest.objects.filter(inventory_request=inventory_request).first()
+    if existing_procurement_request:
+        return redirect('procurement_request_list')
+
+    if inventory_request.product and inventory_request.product.stock >= inventory_request.quantity:
+        return redirect('warehouse_inventory_request_list')
+
+    procurement_request = ProcurementRequest(
+        inventory_request=inventory_request,
+        product=inventory_request.product,
+        product_name=inventory_request.product_name or (
+            inventory_request.product.name if inventory_request.product else None
+        ),
+        quantity=inventory_request.quantity,
+        created_by=request.user,
+    )
+
+    if request.method == 'POST':
+        form = ProcurementRequestForm(request.POST, instance=procurement_request)
+        if form.is_valid():
+            procurement_request = form.save(commit=False)
+            procurement_request.save()
+            return redirect('procurement_request_list')
+    else:
+        form = ProcurementRequestForm(instance=procurement_request)
+
+    return render(request, 'inventory/procurement_request_form.html', {
+        'form': form,
+        'inventory_request': inventory_request,
+    })
+
+
+@login_required
+@permission_required('inventory.approve_procurementrequest', raise_exception=True)
+def procurement_request_approval_list(request):
+    procurement_requests = get_procurement_request_approval_queryset()
+    return render(request, 'inventory/procurement_request_approval_list.html', {
+        'procurement_requests': procurement_requests
+    })
+
+
+@login_required
+@permission_required('inventory.approve_procurementrequest', raise_exception=True)
+def procurement_request_decide(request, pk):
+    if request.method != 'POST':
+        return redirect('procurement_request_approval_list')
+
+    procurement_request = get_object_or_404(ProcurementRequest, pk=pk)
+    decision = request.POST.get('decision')
+
+    if procurement_request.status != 'PENDING':
+        return redirect('procurement_request_approval_list')
+
+    if decision == 'approve':
+        procurement_request.status = 'APPROVED'
+        procurement_request.approved_by = request.user
+        procurement_request.approved_at = timezone.now()
+        procurement_request.rejected_by = None
+        procurement_request.rejected_at = None
+        procurement_request.rejected_reason = None
+        procurement_request.save()
+    elif decision == 'reject':
+        rejected_reason = (request.POST.get('rejected_reason') or '').strip()
+        if not rejected_reason:
+            return render(request, 'inventory/procurement_request_approval_list.html', {
+                'procurement_requests': get_procurement_request_approval_queryset(),
+                'rejection_error_for_id': procurement_request.id,
+            })
+
+        procurement_request.status = 'REJECTED'
+        procurement_request.rejected_by = request.user
+        procurement_request.rejected_at = timezone.now()
+        procurement_request.rejected_reason = rejected_reason
+        procurement_request.approved_by = None
+        procurement_request.approved_at = None
+        procurement_request.save()
+
+    return redirect('procurement_request_approval_list')
+
+
+@login_required
 @permission_required('inventory.add_inventorytransaction', raise_exception=True)
 def warehouse_inventory_request_fulfill(request, pk):
     if request.method != 'POST':
@@ -180,11 +296,14 @@ def warehouse_inventory_request_fulfill(request, pk):
             pk=pk,
         )
 
-        if (inventory_request.status != 'APPROVED'
-                or not inventory_request.product
-                or inventory_request.product.stock < inventory_request.quantity
-        ):
+        if inventory_request.status != 'APPROVED':
             return redirect('warehouse_inventory_request_list')
+
+        if (
+            not inventory_request.product
+            or inventory_request.product.stock < inventory_request.quantity
+        ):
+            return redirect('warehouse_procurement_request_create', pk=inventory_request.pk)
 
         product = inventory_request.product
         product.stock -= inventory_request.quantity

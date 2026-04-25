@@ -10,6 +10,7 @@
     <tr class="border-b">
         <th class="p-2 text-left">ID</th>
         <th class="p-2 text-left">Product</th>
+        <th class="p-2 text-left">Current Stock</th>
         <th class="p-2 text-left">Quantity</th>
         <th class="p-2 text-left">Reason</th>
         <th class="p-2 text-left">Status</th>
@@ -22,8 +23,23 @@
         <td class="p-2">
             {% if inventory_request.product %}
             {{ inventory_request.product.name }}
+            {% if inventory_request.product.stock < inventory_request.quantity %}
+            <span class="ml-2 inline-flex items-center rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800">
+                Needs Procurement
+            </span>
+            {% endif %}
             {% else %}
             {{ inventory_request.product_name }}
+            <span class="ml-2 inline-flex items-center rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800">
+                Needs Procurement
+            </span>
+            {% endif %}
+        </td>
+        <td class="p-2">
+            {% if inventory_request.product %}
+            {{ inventory_request.product.stock }}
+            {% else %}
+            -
             {% endif %}
         </td>
         <td class="p-2">{{ inventory_request.quantity }}</td>
@@ -84,7 +100,7 @@
     </tr>
     {% empty %}
     <tr>
-        <td colspan="6" class="p-4 text-center text-gray-500">No inventory requests available.</td>
+        <td colspan="7" class="p-4 text-center text-gray-500">No inventory requests available.</td>
     </tr>
     {% endfor %}
 </table>
