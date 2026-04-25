@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1 class="text-2xl font-bold mb-4">New Procurement Request</h1>
+
+<form method="post" class="bg-white p-4 rounded shadow space-y-4">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <span class="text-red-500">{{ form.non_field_errors }}</span>
+    {% endif %}
+
+    <div>
+        {{ form.use_manual_product }} {{ form.use_manual_product.label }}
+    </div>
+
+    <div id="product">
+        {{ form.product.label_tag }}
+        <select id="id_product" name="product" class="w-full border rounded-lg px-3 py-2">
+            <option value="">Select a Product!</option>
+            {% for product in products %}
+            <option value="{{ product.id }}" {% if form.product.value|stringformat:"s" == product.id|stringformat:"s" %}selected{% endif %}>
+                {{ product.name }} (Stock: {{ product.stock }})
+            </option>
+            {% endfor %}
+        </select>
+        {% if form.product.errors %}
+        <span class="text-red-500">{{ form.product.errors }}</span>
+        {% endif %}
+    </div>
+
+    <div id="product_name" class="hidden">
+        {{ form.product_name.label_tag }}
+        {{ form.product_name }}
+        {% if form.product_name.errors %}
+        <span class="text-red-500">{{ form.product_name.errors }}</span>
+        {% endif %}
+    </div>
+
+    <div>
+        {{ form.quantity.label_tag }}
+        {{ form.quantity }}
+        {% if form.quantity.errors %}
+        <span class="text-red-500">{{ form.quantity.errors }}</span>
+        {% endif %}
+    </div>
+
+    <div>
+        {{ form.price.label_tag }}
+        <div class="flex">
+            <span class="inline-flex items-center rounded-l-lg border border-r-0 bg-gray-100 px-3 text-gray-700">
+                Rp
+            </span>
+            {{ form.price }}
+        </div>
+        <p class="mt-1 text-xs text-gray-500">Use IDR format. Example: 1.250.000</p>
+        {% if form.price.errors %}
+        <span class="text-red-500">{{ form.price.errors }}</span>
+        {% endif %}
+    </div>
+
+    <div>
+        {{ form.notes.label_tag }}
+        {{ form.notes }}
+        {% if form.notes.errors %}
+        <span class="text-red-500">{{ form.notes.errors }}</span>
+        {% endif %}
+    </div>
+
+    <button class="bg-blue-600 text-white px-4 py-2 rounded">
+        Submit Procurement Request
+    </button>
+</form>
+
+<script>
+    $(document).ready(function () {
+        $("#id_product").select2({
+            placeholder: "Search product...",
+            width: "100%"
+        });
+
+        const checkbox = document.getElementById("id_use_manual_product");
+
+        function toggleFields() {
+            if (checkbox.checked) {
+                $("#id_product").val(null).trigger("change").prop("disabled", true);
+                $("#id_product_name").prop("disabled", false);
+                $("#product_name").addClass("block").removeClass("hidden");
+                $("#product").addClass("hidden").removeClass("block");
+            } else {
+                $("#id_product").prop("disabled", false);
+                $("#id_product_name").val("").prop("disabled", true);
+                $("#product").addClass("block").removeClass("hidden");
+                $("#product_name").addClass("hidden").removeClass("block");
+            }
+        }
+
+        checkbox.addEventListener("change", toggleFields);
+        toggleFields();
+
+        const priceInput = document.getElementById("id_price");
+
+        function formatIdr(value) {
+            const digitsOnly = value.replace(/\D/g, "");
+            if (!digitsOnly) return "";
+            return digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        }
+
+        if (priceInput) {
+            priceInput.value = formatIdr(priceInput.value);
+            priceInput.addEventListener("input", function () {
+                this.value = formatIdr(this.value);
+            });
+        }
+    });
+</script>
+
+{% endblock %}

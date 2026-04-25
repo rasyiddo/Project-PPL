@@ -98,16 +98,21 @@
         {% endif %}
 
         <!-- PROCUREMENT -->
+        {% if perms.inventory.view_procurementrequest or perms.inventory.add_procurementrequest %}
         <div>
             <p class="text-gray-400 text-sm mt-4">PROCUREMENT</p>
 
-            {% if perms.inventory.view_procurementrequest %}
+            {% if perms.inventory.add_procurementrequest %}
             <a href="/procurement/list/" class="block py-1">My Procurements</a>
+            {% endif %}
+            {% if perms.inventory.add_procurementrequest %}
+            <a href="/procurement/create/" class="block py-1">New Request</a>
             {% endif %}
             {% if perms.inventory.approve_procurementrequest %}
             <a href="/procurement/approval/" class="block py-1">Approval List</a>
             {% endif %}
         </div>
+        {% endif %}
 
         <!-- LOGOUT -->
         <form method="post" action="{% url 'logout' %}" class="mt-6">
@@ -120,11 +125,28 @@
     </div>
 
     <!-- MAIN CONTENT -->
-    <div class="flex-1 p-6 ml-64">
+    <div class="flex-1 ml-64">
+        <div class="fixed top-0 right-0 left-64 z-10 border-b bg-white/95 backdrop-blur">
+            <div class="flex h-14 items-center justify-end px-6">
+                <div class="rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-700">
+                    Signed in as <span class="font-semibold text-gray-900">{{ user.username }}</span>
+                    {% with role=user.groups.first %}
+                    {% if role %}
+                    <span class="ml-2 text-gray-400">|</span>
+                    <span class="ml-2 text-xs font-medium text-blue-600">{{ role.name }}</span>
+                    {% elif user.is_superuser %}
+                    <span class="ml-2 text-gray-400">|</span>
+                    <span class="ml-2 text-xs font-medium text-purple-600">Superuser</span>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
 
-        {% block content %}
-        {% endblock %}
-
+        <div class="p-6 pt-20">
+            {% block content %}
+            {% endblock %}
+        </div>
     </div>
 
 </div>

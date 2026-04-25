@@ -6,7 +6,6 @@ from django.contrib.auth.forms import AuthenticationForm
 from .models import Product, InventoryRequest, ProcurementRequest
 
 
-
 class CustomLoginForm(AuthenticationForm):
     username = forms.CharField(widget=forms.TextInput(attrs={
         'class': 'w-full border rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500'
@@ -158,3 +157,119 @@ class ProcurementRequestForm(forms.ModelForm):
         if price <= 0:
             raise forms.ValidationError("Price must be greater than 0.")
         return price
+
+
+class StandaloneProcurementRequestForm(ProcurementRequestForm):
+    use_manual_product = forms.BooleanField(
+        required=False,
+        label="Product not found? Enter manually"
+    )
+    product = forms.ModelChoiceField(
+        queryset=Product.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'w-full border rounded-lg px-3 py-2'
+        })
+    )
+    product_name = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full border rounded-lg px-3 py-2',
+            'placeholder': 'Enter product name manually'
+        })
+    )
+    quantity = forms.IntegerField(
+        min_value=1,
+        widget=forms.NumberInput(attrs={
+            'class': 'w-full border rounded-lg px-3 py-2'
+        })
+    )
+
+    class Meta(ProcurementRequestForm.Meta):
+        fields = ['product', 'product_name', 'quantity', 'price', 'notes']
+
+    def clean(self):
+        cleaned_data = super().clean()
+        use_manual = cleaned_data.get('use_manual_product')
+        product = cleaned_data.get('product')
+        product_name = (cleaned_data.get('product_name') or '').strip()
+
+        if use_manual:
+            if not product_name:
+                raise forms.ValidationError("Please enter a product name.")
+            cleaned_data['product'] = None
+            cleaned_data['product_name'] = product_name.upper()
+        else:
+            if not product:
+                raise forms.ValidationError("Please select a product.")
+            cleaned_data['product_name'] = None
+
+        return cleaned_data
+
+
+class ProcurementFulfillmentForm(forms.Form):
+    product_name = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full border rounded-lg px-3 py-2',
+            'placeholder': 'Enter product name'
+        })
+    )
+    received_quantity = forms.IntegerField(
+        min_value=1,
+        widget=forms.NumberInput(attrs={
+            'class': 'w-full border rounded-lg px-3 py-2',
+            'placeholder': 'Enter received quantity'
+        })
+    )
+
+    def __init__(self, *args, procurement_request=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.procurement_request = procurement_request
+
+        if procurement_request and procurement_request.product:
+            self.fields['product_name'].initial = procurement_request.product.name
+            self.fields['product_name'].widget.attrs.update({
+                'readonly': 'readonly',
+                'class': 'w-full border rounded-lg px-3 py-2 bg-gray-100 text-gray-500'
+            })
+        elif procurement_request and procurement_request.product_name:
+            self.fields['product_name'].initial = procurement_request.product_name
+
+    def clean_product_name(self):
+        product_name = (self.cleaned_data.get('product_name') or '').strip()
+
+        if self.procurement_request and self.procurement_request.product:
+            return self.procurement_request.product.name
+
+        if not product_name:
+            raise forms.ValidationError("Product name is required.")
+
+        product_name = product_name.upper()
+
+        if Product.objects.filter(name__iexact=product_name).exists():
+            raise forms.ValidationError("Product with this name already exists.")
+
+        return product_name
+
+    def clean_received_quantity(self):
+        received_quantity = self.cleaned_data.get('received_quantity')
+
+        if received_quantity is None or received_quantity <= 0:
+            raise forms.ValidationError("Received quantity must be greater than 0.")
+
+        if self.procurement_request and self.procurement_request.inventory_request:
+            current_stock = self.procurement_request.product.stock if self.procurement_request.product else 0
+            requested_quantity = self.procurement_request.inventory_request.quantity
+            if current_stock + received_quantity < requested_quantity:
+                raise forms.ValidationError(
+                    f"Current stock ({current_stock}) + received quantity ({received_quantity}) "
+                    f"must be at least {requested_quantity} to fulfill the request."
+                )
+        elif self.procurement_request and not self.procurement_request.inventory_request:
+            if received_quantity < self.procurement_request.quantity:
+                raise forms.ValidationError(
+                    f"Received quantity must be at least {self.procurement_request.quantity}."
+                )
+
+        return received_quantity

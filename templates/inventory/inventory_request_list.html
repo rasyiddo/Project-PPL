@@ -3,7 +3,7 @@
 {% block content %}
 
 <div class="flex justify-between items-center mb-4">
-    <h1 class="text-2xl font-bold">Inventory Requests</h1>
+    <h1 class="text-2xl font-bold">My Inventory Requests</h1>
 
     {% if perms.inventory.add_inventoryrequest %}
     <a href="{% url 'inventory_request_create' %}" class="bg-blue-600 text-white px-4 py-2 rounded">
