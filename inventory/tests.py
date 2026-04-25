@@ -960,6 +960,27 @@ class InventoryRequestResubmitTest(TestCase):
         self.assertEqual(form.initial.get('product_name'), 'CUSTOM ITEM')
         self.assertTrue(form.initial.get('use_manual_product'))
 
+    def test_from_param_switches_to_product_dropdown_if_product_name_now_exists(self):
+        # IR was rejected with a manually entered product_name
+        req = InventoryRequest.objects.create(
+            product_name='CUSTOM ITEM',
+            quantity=2,
+            reason='Special order',
+            status='REJECTED',
+            rejected_reason='Wrong vendor',
+            created_by=self.user,
+            rejected_at=timezone.now(),
+        )
+        # The product has since been created in the system
+        created_product = Product.objects.create(name='CUSTOM ITEM', stock=10)
+        response = self.client.get(reverse('inventory_request_create'), {'from': req.id})
+        self.assertEqual(response.status_code, 200)
+        form = response.context['form']
+        # Should switch to dropdown mode with the existing product pre-selected
+        self.assertFalse(form.initial.get('use_manual_product'))
+        self.assertEqual(form.initial.get('product'), created_product)
+        self.assertIsNone(form.initial.get('product_name'))
+
     def test_from_param_ignored_for_non_rejected_request(self):
         pending = InventoryRequest.objects.create(
             product=self.product, quantity=1, reason='Test',
