@@ -17,12 +17,13 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Product</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Qty</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Stock</th>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-56g">Actions</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-56">Actions</th>
                 </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                 {% for inventory_request in inventory_requests %}
-                <tr class="hover:bg-blue-50 transition-colors">
+                <tr class="{% if inventory_request.status == 'FULFILLED' %}bg-gray-50 opacity-60{% else %}hover:bg-blue-50{% endif %} transition-colors">
                     <td class="px-4 py-3 align-middle">
                         <span class="font-mono text-xs font-semibold text-gray-500">IR-{{ inventory_request.id|stringformat:"05d" }}</span>
                     </td>
@@ -45,24 +46,33 @@
                         {% endif %}
                     </td>
                     <td class="px-4 py-3 align-middle">
+                        {% if inventory_request.status == 'FULFILLED' %}
+                        <span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Fulfilled</span>
+                        {% else %}
+                        <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Approved</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 align-middle">
                         <a href="{% url 'inventory_request_detail' inventory_request.id %}"
                            class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Detail</a>
-                        {% if not inventory_request.product or inventory_request.product.stock < inventory_request.quantity %}
-                        <a href="{% url 'procurement_request_create' %}?inventory_request={{ inventory_request.id }}"
-                           class="inline-flex items-center rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600">Procure</a>
-                        {% else %}
-                        <form method="post" action="{% url 'warehouse_inventory_request_fulfill' inventory_request.id %}" class="inline-flex">
-                            {% csrf_token %}
-                            <button class=" items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
-                                Fulfill
-                            </button>
-                        </form>
+                        {% if inventory_request.status == 'APPROVED' %}
+                            {% if not inventory_request.product or inventory_request.product.stock < inventory_request.quantity %}
+                            <a href="{% url 'procurement_request_create' %}?inventory_request={{ inventory_request.id }}"
+                               class="inline-flex items-center rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600">Procure</a>
+                            {% else %}
+                            <form method="post" action="{% url 'warehouse_inventory_request_fulfill' inventory_request.id %}" class="inline-flex">
+                                {% csrf_token %}
+                                <button class="items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
+                                    Fulfill
+                                </button>
+                            </form>
+                            {% endif %}
                         {% endif %}
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="px-4 py-12 text-center text-gray-400">
+                    <td colspan="6" class="px-4 py-12 text-center text-gray-400">
                         <p class="text-3xl mb-2">✅</p>
                         <p class="font-medium text-gray-500">No approved requests are ready for fulfillment.</p>
                     </td>
