@@ -1,11 +1,170 @@
 from django.contrib.auth.decorators import login_required, permission_required
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Case, F, IntegerField, Q, Value, When
+from django.db.models import Case, F, IntegerField, Q, Sum, Value, When
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
 from .forms import ProductForm, InventoryRequestForm, ProcurementRequestForm, StandaloneProcurementRequestForm, ProcurementFulfillmentForm
 from .models import Product, InventoryRequest, InventoryTransaction, ProcurementRequest
+
+
+LOW_STOCK_THRESHOLD = 10
+
+
+def _build_ir_timeline(ir):
+    """Build a list of timeline event dicts for an InventoryRequest."""
+    events = []
+    events.append({
+        'label': 'Request Submitted',
+        'actor': ir.created_by,
+        'time': ir.created_at,
+        'color': 'blue',
+        'note': ir.reason,
+        'note_label': 'Reason',
+    })
+
+    if ir.status in ('APPROVED', 'FULFILLED') and ir.approved_at:
+        events.append({
+            'label': 'Request Approved',
+            'actor': ir.approved_by,
+            'time': ir.approved_at,
+            'color': 'emerald',
+            'note': None,
+            'note_label': None,
+        })
+    elif ir.status == 'REJECTED' and ir.rejected_at:
+        events.append({
+            'label': 'Request Rejected',
+            'actor': ir.rejected_by,
+            'time': ir.rejected_at,
+            'color': 'red',
+            'note': ir.rejected_reason,
+            'note_label': 'Reason',
+        })
+
+    if ir.status == 'FULFILLED':
+        fulfill_tx = (
+            InventoryTransaction.objects
+            .filter(inventory_request=ir, transaction_type='OUT')
+            .select_related('created_by')
+            .order_by('created_at')
+            .first()
+        )
+        if fulfill_tx:
+            events.append({
+                'label': 'Request Fulfilled',
+                'actor': fulfill_tx.created_by,
+                'time': fulfill_tx.created_at,
+                'color': 'violet',
+                'note': f"−{ir.quantity} units dispatched from stock",
+                'note_label': 'Transaction',
+            })
+
+    for i, event in enumerate(events):
+        if i > 0 and events[i - 1]['time'] and event['time']:
+            event['duration_since_prev'] = event['time'] - events[i - 1]['time']
+        else:
+            event['duration_since_prev'] = None
+
+    total_duration = None
+    if ir.status in ('FULFILLED', 'REJECTED') and len(events) >= 2:
+        first_time = events[0]['time']
+        last_time = events[-1]['time']
+        if first_time and last_time:
+            total_duration = last_time - first_time
+
+    return events, total_duration
+
+
+def _build_pr_timeline(pr):
+    """Build a list of timeline event dicts for a ProcurementRequest."""
+    events = []
+    events.append({
+        'label': 'Procurement Submitted',
+        'actor': pr.created_by,
+        'time': pr.created_at,
+        'color': 'blue',
+        'note': pr.notes,
+        'note_label': 'Notes',
+    })
+
+    if pr.status in ('APPROVED', 'ORDERED', 'FULFILLED') and pr.approved_at:
+        events.append({
+            'label': 'Procurement Approved',
+            'actor': pr.approved_by,
+            'time': pr.approved_at,
+            'color': 'emerald',
+            'note': None,
+            'note_label': None,
+        })
+    elif pr.status == 'REJECTED' and pr.rejected_at:
+        events.append({
+            'label': 'Procurement Rejected',
+            'actor': pr.rejected_by,
+            'time': pr.rejected_at,
+            'color': 'red',
+            'note': pr.rejected_reason,
+            'note_label': 'Reason',
+        })
+
+    if pr.status == 'ORDERED':
+        events.append({
+            'label': 'Order Placed / Awaiting Delivery',
+            'actor': None,
+            'time': None,
+            'color': 'amber',
+            'note': None,
+            'note_label': None,
+        })
+
+    if pr.status == 'FULFILLED':
+        in_tx = (
+            InventoryTransaction.objects
+            .filter(procurement_request=pr, transaction_type='IN')
+            .select_related('created_by')
+            .order_by('created_at')
+            .first()
+        )
+        if in_tx:
+            events.append({
+                'label': 'Stock Received',
+                'actor': in_tx.created_by,
+                'time': in_tx.created_at,
+                'color': 'violet',
+                'note': f"+{pr.quantity} units added to stock",
+                'note_label': 'Transaction',
+            })
+
+    for i, event in enumerate(events):
+        if i > 0 and events[i - 1]['time'] and event['time']:
+            event['duration_since_prev'] = event['time'] - events[i - 1]['time']
+        else:
+            event['duration_since_prev'] = None
+
+    total_duration = None
+    if pr.status in ('FULFILLED', 'REJECTED') and len(events) >= 2:
+        first_time = events[0]['time']
+        last_time = events[-1]['time']
+        if first_time and last_time:
+            total_duration = last_time - first_time
+
+    return events, total_duration
+    return (
+        InventoryRequest.objects
+        .exclude(created_by=user)
+        .select_related('product', 'created_by', 'approved_by', 'rejected_by')
+        .annotate(
+            approval_priority=Case(
+                When(status='PENDING', then=Value(0)),
+                When(status='APPROVED', then=Value(1)),
+                When(status='REJECTED', then=Value(2)),
+                default=Value(3),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by('approval_priority', '-created_at')
+    )
 
 
 def get_inventory_request_approval_queryset(user):
@@ -55,7 +214,142 @@ def get_procurement_request_approval_queryset():
 
 @login_required
 def dashboard(request):
-    return render(request, 'inventory/dashboard.html')
+    ctx = {}
+
+    if request.user.has_perm('inventory.view_product'):
+        ctx['total_products'] = Product.objects.count()
+        ctx['low_stock_count'] = Product.objects.filter(stock__lt=LOW_STOCK_THRESHOLD, stock__gt=0).count()
+        ctx['out_of_stock_count'] = Product.objects.filter(stock=0).count()
+        ctx['low_stock_products'] = (
+            Product.objects.filter(stock__lt=LOW_STOCK_THRESHOLD)
+            .order_by('stock')[:10]
+        )
+
+    if request.user.has_perm('inventory.approve_inventoryrequest'):
+        qs = InventoryRequest.objects
+        ctx['ir_pending'] = qs.filter(status='PENDING').count()
+        ctx['ir_approved'] = qs.filter(status='APPROVED').count()
+        ctx['ir_fulfilled'] = qs.filter(status='FULFILLED').count()
+        ctx['ir_rejected'] = qs.filter(status='REJECTED').count()
+    elif request.user.has_perm('inventory.view_inventoryrequest'):
+        qs = InventoryRequest.objects.filter(created_by=request.user)
+        ctx['ir_pending'] = qs.filter(status='PENDING').count()
+        ctx['ir_approved'] = qs.filter(status='APPROVED').count()
+        ctx['ir_fulfilled'] = qs.filter(status='FULFILLED').count()
+        ctx['ir_rejected'] = qs.filter(status='REJECTED').count()
+
+    if request.user.has_perm('inventory.approve_procurementrequest'):
+        qs = ProcurementRequest.objects
+        ctx['pr_pending'] = qs.filter(status='PENDING').count()
+        ctx['pr_approved'] = qs.filter(status='APPROVED').count()
+        ctx['pr_ordered'] = qs.filter(status='ORDERED').count()
+        ctx['pr_fulfilled'] = qs.filter(status='FULFILLED').count()
+    elif request.user.has_perm('inventory.view_procurementrequest'):
+        qs = ProcurementRequest.objects.filter(created_by=request.user)
+        ctx['pr_pending'] = qs.filter(status='PENDING').count()
+        ctx['pr_approved'] = qs.filter(status='APPROVED').count()
+        ctx['pr_ordered'] = qs.filter(status='ORDERED').count()
+        ctx['pr_fulfilled'] = qs.filter(status='FULFILLED').count()
+
+    if request.user.has_perm('inventory.view_inventorytransaction'):
+        ctx['recent_transactions'] = (
+            InventoryTransaction.objects
+            .select_related('product', 'created_by', 'inventory_request', 'procurement_request')
+            .order_by('-created_at')[:10]
+        )
+
+    return render(request, 'inventory/dashboard.html', ctx)
+
+
+@login_required
+def inventory_request_detail(request, pk):
+    ir = get_object_or_404(
+        InventoryRequest.objects.select_related(
+            'product', 'created_by', 'approved_by', 'rejected_by'
+        ),
+        pk=pk,
+    )
+    can_view = (
+        ir.created_by == request.user
+        or request.user.has_perm('inventory.approve_inventoryrequest')
+        or request.user.has_perm('inventory.add_inventorytransaction')
+    )
+    if not can_view:
+        raise PermissionDenied
+
+    timeline, total_duration = _build_ir_timeline(ir)
+
+    linked_procurements = (
+        ProcurementRequest.objects
+        .filter(inventory_request=ir)
+        .select_related('product', 'created_by', 'approved_by', 'rejected_by')
+        .order_by('-created_at')
+    )
+
+    return render(request, 'inventory/inventory_request_detail.html', {
+        'ir': ir,
+        'timeline': timeline,
+        'total_duration': total_duration,
+        'linked_procurements': linked_procurements,
+    })
+
+
+@login_required
+def procurement_request_detail(request, pk):
+    pr = get_object_or_404(
+        ProcurementRequest.objects.select_related(
+            'product', 'inventory_request', 'created_by', 'approved_by', 'rejected_by',
+            'inventory_request__product', 'inventory_request__created_by',
+        ),
+        pk=pk,
+    )
+    can_view = (
+        pr.created_by == request.user
+        or request.user.has_perm('inventory.approve_procurementrequest')
+        or request.user.has_perm('inventory.add_inventorytransaction')
+    )
+    if not can_view:
+        raise PermissionDenied
+
+    timeline, total_duration = _build_pr_timeline(pr)
+
+    return render(request, 'inventory/procurement_request_detail.html', {
+        'pr': pr,
+        'timeline': timeline,
+        'total_duration': total_duration,
+    })
+
+
+@login_required
+@permission_required('inventory.view_product', raise_exception=True)
+def product_detail(request, pk):
+    product = get_object_or_404(Product.objects.select_related('created_by'), pk=pk)
+
+    ctx = {'product': product}
+
+    if request.user.has_perm('inventory.view_inventoryrequest') or request.user.has_perm('inventory.approve_inventoryrequest'):
+        ctx['ir_count'] = InventoryRequest.objects.filter(product=product).count()
+        ctx['ir_fulfilled_count'] = InventoryRequest.objects.filter(product=product, status='FULFILLED').count()
+        ctx['ir_pending_count'] = InventoryRequest.objects.filter(product=product, status='PENDING').count()
+
+    if request.user.has_perm('inventory.view_procurementrequest') or request.user.has_perm('inventory.approve_procurementrequest'):
+        ctx['pr_count'] = ProcurementRequest.objects.filter(product=product).count()
+        ctx['pr_fulfilled_count'] = ProcurementRequest.objects.filter(product=product, status='FULFILLED').count()
+
+    if request.user.has_perm('inventory.view_inventorytransaction'):
+        txs = (
+            InventoryTransaction.objects
+            .filter(product=product)
+            .select_related('created_by', 'inventory_request', 'procurement_request')
+            .order_by('-created_at')
+        )
+        in_total = txs.filter(transaction_type='IN').aggregate(total=Sum('quantity'))['total'] or 0
+        out_total = txs.filter(transaction_type='OUT').aggregate(total=Sum('quantity'))['total'] or 0
+        ctx['transactions'] = txs
+        ctx['in_total'] = in_total
+        ctx['out_total'] = out_total
+
+    return render(request, 'inventory/product_detail.html', ctx)
 
 
 @login_required

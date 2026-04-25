@@ -22,9 +22,15 @@
 
     {% for product in products %}
     <tr class="border-b hover:bg-blue-50">
-        <td class="p-2">{{ product.name }}</td>
-        <td class="p-2">{{ product.stock }}</td>
-        <td class="p-2 space-x-3">
+        <td class="p-2 align-middle align-middle">
+            <a href="{% url 'product_detail' product.id %}" class="text-blue-600 hover:underline font-medium">{{ product.name }}</a>
+        </td>
+        <td class="p-2 align-middle align-middle">{{ product.stock }}</td>
+        <td class="p-2 align-middle space-x-3">
+            <a href="{% url 'product_detail' product.id %}" class="inline-block rounded bg-blue-600 px-3 py-2 text-white text-sm">
+                Detail
+            </a>
+
             {% if perms.inventory.change_product %}
             <a href="{% url 'product_update' product.id %}" class="text-blue-600">
                 Edit

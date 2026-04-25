@@ -18,9 +18,13 @@
 
     {% for transaction in transactions %}
     <tr class="border-b hover:bg-blue-50">
-        <td class="p-2">{{ transaction.created_at|date:"M d, Y H:i" }}</td>
-        <td class="p-2">{{ transaction.product.name|default:"-" }}</td>
-        <td class="p-2">
+        <td class="p-2 align-middle align-middle">{{ transaction.created_at|date:"M d, Y H:i" }}</td>
+        <td class="p-2 align-middle align-middle">
+            {% if transaction.product %}
+            <a href="{% url 'product_detail' transaction.product.id %}?next={{ request.path }}" class="text-blue-600 hover:underline font-medium">{{ transaction.product.name }}</a>
+            {% else %}-{% endif %}
+        </td>
+        <td class="p-2 align-middle align-middle">
             <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium
                 {% if transaction.transaction_type == 'IN' %}bg-emerald-100 text-emerald-800
                 {% elif transaction.transaction_type == 'OUT' %}bg-red-100 text-red-800
@@ -28,15 +32,15 @@
                 {{ transaction.get_transaction_type_display }}
             </span>
         </td>
-        <td class="p-2">{{ transaction.quantity }}</td>
-        <td class="p-2">
+        <td class="p-2 align-middle align-middle">{{ transaction.quantity }}</td>
+        <td class="p-2 align-middle align-middle">
             {% if transaction.inventory_request %}
             #{{ transaction.inventory_request.id }}
             {% else %}
             -
             {% endif %}
         </td>
-        <td class="p-2">{{ transaction.created_by|default:"-" }}</td>
+        <td class="p-2 align-middle align-middle">{{ transaction.created_by|default:"-" }}</td>
     </tr>
     {% empty %}
     <tr>
