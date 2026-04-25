@@ -577,7 +577,8 @@ def procurement_request_list(request):
         .order_by('-created_at')
     )
     return render(request, 'inventory/procurement_request_list.html', {
-        'procurement_requests': procurement_requests
+        'procurement_requests': procurement_requests,
+        'mode': 'owner',
     })
 
 
@@ -708,8 +709,9 @@ def procurement_request_fulfill(request, pk):
 @permission_required('inventory.approve_procurementrequest', raise_exception=True)
 def procurement_request_approval_list(request):
     procurement_requests = get_procurement_request_approval_queryset()
-    return render(request, 'inventory/procurement_request_approval_list.html', {
-        'procurement_requests': procurement_requests
+    return render(request, 'inventory/procurement_request_list.html', {
+        'procurement_requests': procurement_requests,
+        'mode': 'approver',
     })
 
 
@@ -736,9 +738,10 @@ def procurement_request_decide(request, pk):
     elif decision == 'reject':
         rejected_reason = (request.POST.get('rejected_reason') or '').strip()
         if not rejected_reason:
-            return render(request, 'inventory/procurement_request_approval_list.html', {
+            return render(request, 'inventory/procurement_request_list.html', {
                 'procurement_requests': get_procurement_request_approval_queryset(),
                 'rejection_error_for_id': procurement_request.id,
+                'mode': 'approver',
             })
 
         procurement_request.status = 'REJECTED'
