@@ -8,6 +8,16 @@ class Product(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        if self.name:
+            self.name = self.name.upper().strip()
+        super().save(*args, **kwargs)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['name'], name='unique_product_name')
+        ]
+
 class InventoryTransaction(models.Model):
     TRANSACTION_TYPE = [
         ('IN', 'Incoming'),

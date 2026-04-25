@@ -10,7 +10,7 @@
 <div class="flex h-screen">
 
     <!-- SIDEBAR -->
-    <div class="w-64 bg-gray-900 text-white p-4 space-y-4">
+    <div class="w-64 bg-gray-900 text-white p-4 space-y-4 fixed h-screen overflow-y-auto">
 
         <h2 class="text-xl font-bold">IMS Dashboard</h2>
 
@@ -33,7 +33,7 @@
         <!-- INVENTORY REQUEST -->
         {% if perms.inventory.view_inventoryrequest %}
         <div>
-            <p class="text-gray-400 text-sm mt-4">REQUESTS</p>
+            <p class="text-gray-400 text-sm mt-4">INVENTORY REQUESTS</p>
 
             {% if perms.inventory.add_inventoryrequest %}
             <a href="/requests/create/" class="block py-1">New Request</a>
@@ -75,7 +75,7 @@
     </div>
 
     <!-- MAIN CONTENT -->
-    <div class="flex-1 p-6">
+    <div class="flex-1 p-6 ml-64">
 
         {% block content %}
         {% endblock %}
