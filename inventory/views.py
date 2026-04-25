@@ -4,7 +4,7 @@ from django.db.models import Case, F, IntegerField, Q, Value, When
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
-from .forms import ProductForm, InventoryRequestForm, ProcurementRequestForm
+from .forms import ProductForm, InventoryRequestForm, ProcurementRequestForm, StandaloneProcurementRequestForm, ProcurementFulfillmentForm
 from .models import Product, InventoryRequest, InventoryTransaction, ProcurementRequest
 
 
@@ -28,7 +28,8 @@ def get_inventory_request_approval_queryset(user):
 def get_warehouse_fulfillment_queryset():
     return (
         InventoryRequest.objects
-        .filter(status='APPROVED', procurementrequest__isnull=True)
+        .filter(status='APPROVED')
+        .exclude(procurementrequest__status__in=['PENDING', 'APPROVED', 'ORDERED', 'FULFILLED'])
         .select_related('product', 'created_by', 'approved_by')
         .order_by('-approved_at', '-created_at')
     )
@@ -182,6 +183,25 @@ def warehouse_inventory_transaction_list(request):
 
 
 @login_required
+@permission_required('inventory.add_procurementrequest', raise_exception=True)
+def procurement_request_create(request):
+    if request.method == 'POST':
+        form = StandaloneProcurementRequestForm(request.POST)
+        if form.is_valid():
+            procurement_request = form.save(commit=False)
+            procurement_request.created_by = request.user
+            procurement_request.save()
+            return redirect('procurement_request_list')
+    else:
+        form = StandaloneProcurementRequestForm()
+
+    return render(request, 'inventory/procurement_request_create_form.html', {
+        'form': form,
+        'products': Product.objects.all(),
+    })
+
+
+@login_required
 @permission_required('inventory.view_procurementrequest', raise_exception=True)
 def procurement_request_list(request):
     procurement_requests = (
@@ -204,7 +224,9 @@ def warehouse_procurement_request_create(request, pk):
         status='APPROVED',
     )
 
-    existing_procurement_request = ProcurementRequest.objects.filter(inventory_request=inventory_request).first()
+    existing_procurement_request = ProcurementRequest.objects.filter(
+        inventory_request=inventory_request
+    ).exclude(status='REJECTED').first()
     if existing_procurement_request:
         return redirect('procurement_request_list')
 
@@ -233,6 +255,86 @@ def warehouse_procurement_request_create(request, pk):
     return render(request, 'inventory/procurement_request_form.html', {
         'form': form,
         'inventory_request': inventory_request,
+    })
+
+
+@login_required
+@permission_required('inventory.add_inventorytransaction', raise_exception=True)
+def procurement_request_fulfill(request, pk):
+    procurement_request = get_object_or_404(
+        ProcurementRequest.objects.select_related('product', 'inventory_request'),
+        pk=pk,
+        created_by=request.user,
+    )
+
+    if procurement_request.status != 'APPROVED':
+        return redirect('procurement_request_list')
+
+    if request.method == 'POST':
+        form = ProcurementFulfillmentForm(
+            request.POST,
+            procurement_request=procurement_request,
+        )
+
+        if form.is_valid():
+            received_quantity = form.cleaned_data['received_quantity']
+            product_name = form.cleaned_data['product_name']
+
+            with transaction.atomic():
+                inventory_request = procurement_request.inventory_request
+                product = procurement_request.product
+
+                if product:
+                    product = Product.objects.select_for_update().get(pk=product.pk)
+                else:
+                    product = Product.objects.create(
+                        name=product_name,
+                        stock=0,
+                        created_by=request.user,
+                    )
+
+                product.stock += received_quantity
+
+                InventoryTransaction.objects.create(
+                    product=product,
+                    quantity=received_quantity,
+                    transaction_type='IN',
+                    procurement_request=procurement_request,
+                    created_by=request.user,
+                )
+
+                if inventory_request:
+                    inventory_request = InventoryRequest.objects.select_for_update().get(pk=inventory_request.pk)
+                    product.stock -= inventory_request.quantity
+
+                    InventoryTransaction.objects.create(
+                        product=product,
+                        quantity=inventory_request.quantity,
+                        transaction_type='OUT',
+                        inventory_request=inventory_request,
+                        created_by=request.user,
+                    )
+
+                    inventory_request.product = product
+                    inventory_request.product_name = None
+                    inventory_request.status = 'FULFILLED'
+                    inventory_request.save(update_fields=['product', 'product_name', 'status'])
+
+                product.save(update_fields=['stock'])
+
+                procurement_request.product = product
+                procurement_request.product_name = product.name
+                procurement_request.status = 'FULFILLED'
+                procurement_request.save(update_fields=['product', 'product_name', 'status'])
+
+            return redirect('procurement_request_list')
+    else:
+        form = ProcurementFulfillmentForm(procurement_request=procurement_request)
+
+    return render(request, 'inventory/procurement_request_fulfillment_form.html', {
+        'form': form,
+        'procurement_request': procurement_request,
+        'inventory_request': procurement_request.inventory_request,
     })
 
 

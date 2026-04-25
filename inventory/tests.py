@@ -415,7 +415,7 @@ class InventoryRequestApprovalViewTest(TestCase):
         response = self.client.get(reverse('inventory_request_approval_list'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Current Stock')
+        self.assertContains(response, 'Current<br/>Stock')
         self.assertContains(response, 'Needs Procurement')
         self.assertContains(response, '>1<', html=False)
         self.assertContains(response, 'NEW TABLET')
@@ -441,7 +441,7 @@ class WarehouseInventoryRequestViewTest(TestCase):
         )
         self.client.force_login(self.staff)
 
-    def test_fulfillment_list_only_shows_approved_requests_with_enough_stock(self):
+    def test_fulfillment_list_shows_approved_requests_without_procurement_request(self):
         ready_product = Product.objects.create(name='MOUSE', stock=10)
         not_enough_stock_product = Product.objects.create(name='PRINTER', stock=1)
 
@@ -470,8 +470,8 @@ class WarehouseInventoryRequestViewTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, ready_request.product.name)
+        self.assertContains(response, not_enough_stock_product.name)
         self.assertContains(response, reverse('warehouse_inventory_request_fulfill', args=[ready_request.id]))
-        self.assertNotContains(response, 'Needs procurement')
         self.assertNotContains(response, 'Still pending')
 
     def test_fulfill_action_updates_stock_request_and_transaction(self):
@@ -627,6 +627,154 @@ class WarehouseInventoryRequestViewTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertFalse(ProcurementRequest.objects.filter(inventory_request=inventory_request).exists())
 
+    def test_existing_product_procurement_fulfillment_records_incoming_and_outgoing(self):
+        product = Product.objects.create(name='HEADSET', stock=1)
+        inventory_request = InventoryRequest.objects.create(
+            product=product,
+            quantity=3,
+            reason='Replacement',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+        procurement_request = ProcurementRequest.objects.create(
+            inventory_request=inventory_request,
+            product=product,
+            product_name=product.name,
+            quantity=3,
+            price='300000.00',
+            notes='Approved vendor quote',
+            status='APPROVED',
+            created_by=self.staff,
+            approved_at=timezone.now(),
+        )
+
+        response = self.client.post(reverse('procurement_request_fulfill', args=[procurement_request.id]), {
+            'product_name': product.name,
+            'received_quantity': 5,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        product.refresh_from_db()
+        inventory_request.refresh_from_db()
+        procurement_request.refresh_from_db()
+        self.assertEqual(product.stock, 3)
+        self.assertEqual(inventory_request.status, 'FULFILLED')
+        self.assertEqual(procurement_request.status, 'FULFILLED')
+        self.assertEqual(
+            InventoryTransaction.objects.filter(procurement_request=procurement_request, transaction_type='IN').count(),
+            1,
+        )
+        self.assertEqual(
+            InventoryTransaction.objects.filter(inventory_request=inventory_request, transaction_type='OUT').count(),
+            1,
+        )
+
+    def test_new_product_procurement_fulfillment_creates_product_and_fulfills_request(self):
+        inventory_request = InventoryRequest.objects.create(
+            product_name='TABLET',
+            quantity=2,
+            reason='New joiners',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+        procurement_request = ProcurementRequest.objects.create(
+            inventory_request=inventory_request,
+            product_name='TABLET',
+            quantity=2,
+            price='5000000.00',
+            notes='Approved purchase',
+            status='APPROVED',
+            created_by=self.staff,
+            approved_at=timezone.now(),
+        )
+
+        response = self.client.post(reverse('procurement_request_fulfill', args=[procurement_request.id]), {
+            'product_name': 'Tablet Pro',
+            'received_quantity': 3,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        product = Product.objects.get(name='TABLET PRO')
+        inventory_request.refresh_from_db()
+        procurement_request.refresh_from_db()
+        self.assertEqual(product.stock, 1)
+        self.assertEqual(inventory_request.product, product)
+        self.assertEqual(inventory_request.status, 'FULFILLED')
+        self.assertEqual(procurement_request.product, product)
+        self.assertEqual(procurement_request.status, 'FULFILLED')
+
+    def test_procurement_fulfillment_requires_received_quantity_to_cover_inventory_request(self):
+        inventory_request = InventoryRequest.objects.create(
+            product_name='MONITOR ARM',
+            quantity=4,
+            reason='Expansion',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+        procurement_request = ProcurementRequest.objects.create(
+            inventory_request=inventory_request,
+            product_name='MONITOR ARM',
+            quantity=4,
+            price='750000.00',
+            notes='Approved purchase',
+            status='APPROVED',
+            created_by=self.staff,
+            approved_at=timezone.now(),
+        )
+
+        response = self.client.post(reverse('procurement_request_fulfill', args=[procurement_request.id]), {
+            'product_name': 'MONITOR ARM',
+            'received_quantity': 2,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Current stock (0) + received quantity (2) must be at least 4 to fulfill the request.')
+        procurement_request.refresh_from_db()
+        inventory_request.refresh_from_db()
+        self.assertEqual(procurement_request.status, 'APPROVED')
+        self.assertEqual(inventory_request.status, 'APPROVED')
+
+    def test_procurement_fulfillment_requires_received_quantity_to_cover_inventory_request_but_compare_to_current_stock(self):
+        product = Product.objects.create(name='MONITOR ARM', stock=2)
+        inventory_request = InventoryRequest.objects.create(
+            product=product,
+            quantity=4,
+            reason='Expansion',
+            status='APPROVED',
+            approved_at=timezone.now(),
+        )
+        procurement_request = ProcurementRequest.objects.create(
+            inventory_request=inventory_request,
+            product=product,
+            quantity=4,
+            price='750000.00',
+            notes='Approved purchase',
+            status='APPROVED',
+            created_by=self.staff,
+            approved_at=timezone.now(),
+        )
+
+        response = self.client.post(reverse('procurement_request_fulfill', args=[procurement_request.id]), {
+            'product_name': 'MONITOR ARM',
+            'received_quantity': 2,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        product.refresh_from_db()
+        inventory_request.refresh_from_db()
+        procurement_request.refresh_from_db()
+        self.assertEqual(product.stock, 0)
+        self.assertEqual(inventory_request.status, 'FULFILLED')
+        self.assertEqual(procurement_request.status, 'FULFILLED')
+        self.assertEqual(
+            InventoryTransaction.objects.filter(procurement_request=procurement_request, transaction_type='IN').count(),
+            1,
+        )
+        self.assertEqual(
+            InventoryTransaction.objects.filter(inventory_request=inventory_request, transaction_type='OUT').count(),
+            1,
+        )
+
     def test_my_procurement_list_only_shows_current_staff_requests(self):
         own_request = ProcurementRequest.objects.create(
             product_name='MOUSEPAD',
@@ -651,6 +799,10 @@ class WarehouseInventoryRequestViewTest(TestCase):
         self.assertNotContains(response, 'CHAIR')
         self.assertContains(response, 'Rp 20')
 
+
+# endregion
+
+# region Procurement Request
 
 class ProcurementRequestApprovalViewTest(TestCase):
 
